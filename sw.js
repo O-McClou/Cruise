@@ -1,13 +1,11 @@
-// CruiseLog Service Worker v3.0 – mit Leaflet & Weltkarte
-const CACHE = 'cruiselog-v3';
+// CruiseLog Service Worker v4.0 – vollständig offline, alle Assets inline
+const CACHE = 'cruiselog-v4';
 const ASSETS = [
   './',
   './index.html',
-  './manifest.json',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://cdn.jsdelivr.net/gh/holtzy/D3-graph-gallery@master/DATA/world.geojson',
-  'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Nunito:wght@400;500;600;700;800&display=swap'
+  './manifest.json'
+  // Leaflet, TopoJSON-Client und Weltkarten-Daten sind jetzt direkt
+  // in der index.html eingebettet – kein externer CDN-Aufruf mehr nötig.
 ];
 
 self.addEventListener('install', e => {
@@ -36,7 +34,23 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Cache-First für alle Assets
+  // Google Fonts: Network-first, Offline-Fallback auf System-Fonts (kein Fehler)
+  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          if (cached) return cached;
+          return fetch(e.request).then(res => {
+            if (res.ok) cache.put(e.request, res.clone());
+            return res;
+          }).catch(() => cached || new Response('', { status: 200, headers: { 'Content-Type': 'text/css' } }));
+        })
+      )
+    );
+    return;
+  }
+
+  // Cache-First für alle anderen Assets (App-Shell, Karte, etc.)
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
