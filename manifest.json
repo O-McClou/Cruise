@@ -1,0 +1,42 @@
+{
+  "name": "CruiseLog – Cruise Tracker",
+  "short_name": "CruiseLog",
+  "description": "Your personal cruise journey tracker. Log ports, ships, voyages and earn badges.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#003087",
+  "theme_color": "#003087",
+  "orientation": "portrait-primary",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My Ports",
+      "short_name": "Ports",
+      "description": "View your visited ports",
+      "url": "./index.html#ports",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My Ships",
+      "short_name": "Ships",
+      "description": "View your sailed ships",
+      "url": "./index.html#ships",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
