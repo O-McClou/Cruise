@@ -390,9 +390,8 @@ function initMap() {
     },
     center: [10, 20],
     zoom: 1.5,
-    minZoom: 1,
+    minZoom: 0,
     maxZoom: 14,
-    maxBounds: [[-200, -85], [200, 85]],
     attributionControl: false
   });
 
@@ -425,7 +424,7 @@ function initCountryLayer() {
         id: 'countries-visited',
         type: 'fill',
         source: 'countries',
-        filter: ['in', 'ISO_A2', ''],
+        filter: ['in', ['get', 'ISO_A2'], ['literal', ['']]],
         paint: {
           'fill-color': '#0052cc',
           'fill-opacity': 0.55
@@ -459,9 +458,9 @@ function updateCountryHighlight() {
   )];
 
   if (highlight && visitedCodes.length > 0) {
-    MAP.setFilter('countries-visited', ['in', 'ISO_A2', ...visitedCodes]);
+    MAP.setFilter('countries-visited', ['in', ['get', 'ISO_A2'], ['literal', visitedCodes]]);
   } else {
-    MAP.setFilter('countries-visited', ['in', 'ISO_A2', '']);
+    MAP.setFilter('countries-visited', ['in', ['get', 'ISO_A2'], ['literal', ['']]]);
   }
 }
 
