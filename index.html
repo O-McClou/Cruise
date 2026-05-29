@@ -408,26 +408,39 @@ function initCountryLayer() {
   fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
     .then(r => r.json())
     .then(data => {
+      // Log the first feature's properties to diagnose property names at runtime
+      if (data.features && data.features.length > 0) {
+        console.log('[CruiseLog] GeoJSON props:', Object.keys(data.features[0].properties));
+      }
+
       MAP.addSource('countries', { type: 'geojson', data });
 
+      // Base layer – subtle ocean-blue tint for all countries
       MAP.addLayer({
         id: 'countries-fill',
         type: 'fill',
         source: 'countries',
         paint: {
           'fill-color': '#dde8f4',
-          'fill-opacity': 0.6
+          'fill-opacity': 0.45
         }
       });
 
+      // Visited-country highlight layer – initially shows nothing.
+      // The fill-color uses a 'match' expression so MapLibre can
+      // evaluate it purely from feature properties without a filter,
+      // which is more robust across MapLibre versions.
+      // updateCountryHighlight() switches between 'match' (coloured)
+      // and a simple constant (transparent) approach via setFilter.
       MAP.addLayer({
         id: 'countries-visited',
         type: 'fill',
         source: 'countries',
-        filter: ['in', ['get', 'ISO_A2'], ['literal', ['']]],
+        // Start with a filter that never matches (invisible)
+        filter: ['==', ['get', 'ISO_A2'], '__none__'],
         paint: {
           'fill-color': '#0052cc',
-          'fill-opacity': 0.55
+          'fill-opacity': 0.50
         }
       });
 
@@ -458,9 +471,16 @@ function updateCountryHighlight() {
   )];
 
   if (highlight && visitedCodes.length > 0) {
-    MAP.setFilter('countries-visited', ['in', ['get', 'ISO_A2'], ['literal', visitedCodes]]);
+    // 'in' with an expression needle requires MapLibre >=1.15.
+    // Use the equivalent ['match'] approach which works on all MapLibre GL JS versions:
+    //   ['match', ['get', 'ISO_A2'], [...visitedCodes], true, false]
+    // combined with a filter on the boolean result.
+    MAP.setFilter('countries-visited',
+      ['match', ['get', 'ISO_A2'], visitedCodes, true, false]
+    );
   } else {
-    MAP.setFilter('countries-visited', ['in', ['get', 'ISO_A2'], ['literal', ['']]]);
+    // Hide the layer when toggle is off or no ports visited
+    MAP.setFilter('countries-visited', ['==', ['literal', false], true]);
   }
 }
 
