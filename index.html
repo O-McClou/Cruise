@@ -1083,13 +1083,20 @@ function initMap(){
   COUNTRY_LG=L.layerGroup().addTo(MAP);
   MARKER_LG=L.layerGroup().addTo(MAP);
   L.control.attribution({prefix:'© Natural Earth | Leaflet'}).addTo(MAP);
-  // Konvertiere eingebettetes TopoJSON → GeoJSON (kein Netzwerk-Request nötig)
-  try {
-    GEO=topojson.feature(WORLD_TOPO,WORLD_TOPO.objects.countries);
-  } catch(e){
-    console.warn('TopoJSON Fehler:',e);
+  // TopoJSON → GeoJSON asynchron konvertieren (blockiert den Main Thread nicht)
+  const convertTopo=()=>{
+    try {
+      GEO=topojson.feature(WORLD_TOPO,WORLD_TOPO.objects.countries);
+    } catch(e){
+      console.warn('TopoJSON Fehler:',e);
+    }
+    renderMap();
+  };
+  if(typeof requestIdleCallback!=='undefined'){
+    requestIdleCallback(convertTopo,{timeout:2000});
+  } else {
+    setTimeout(convertTopo,0);
   }
-  renderMap();
 }
 
 function renderMap(){
@@ -2329,7 +2336,7 @@ function renderShips(){
   if(q)list=list.filter(s=>s.name.toLowerCase().includes(q)||s.line.toLowerCase().includes(q));
   document.getElementById('sh-list').innerHTML=list.length?list.map(s=>{
     const v=S.vs.includes(s.id);
-    const ret=s.status==='retired';return`<div class="ic ${v?'visited':''} ${ret?'ship-retired':''}" onclick="toggleShip('${s.id}')"><div class="ic-icon">${ret?'⛴️':'🚢'}</div><div class="ic-info"><div class="ic-name">${s.name}${ret?' <span class=\'ret-tag\'>außer Dienst</span>':''}</div><div class="ic-sub">${s.line} · ${s.year} · ${(s.gt/1000).toFixed(0)}K BRZ</div></div><div class="ic-chk">${v?'✅':'⭕'}</div></div>`;
+    const ret=s.status==='retired';return`<div class="ic ${v?'visited':''} ${ret?'ship-retired':''}" onclick="toggleShip('${s.id}')"><div class="ic-icon">${ret?'⛴️':'🚢'}</div><div class="ic-info"><div class="ic-name">${s.name}${ret?' <span class="ret-tag">außer Dienst</span>':''}</div><div class="ic-sub">${s.line} · ${s.year} · ${(s.gt/1000).toFixed(0)}K BRZ</div></div><div class="ic-chk">${v?'✅':'⭕'}</div></div>`;
   }).join(''):'<div class="empty"><p>Keine Schiffe gefunden.</p></div>';
 }
 function toggleShip(id){
@@ -2428,7 +2435,15 @@ function init(){
   if(localStorage.getItem('cl_intro'))document.getElementById('intro').style.display='none';
   renderDashboard();
   setTimeout(()=>initMap(),400);
-  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if('serviceWorker' in navigator){
+    let refreshing=false;
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(refreshing)return;
+      refreshing=true;
+      window.location.reload();
+    });
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  };
 }
 init();
 </script>
