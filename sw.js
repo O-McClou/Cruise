@@ -70,6 +70,14 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // ── Map-Tiles: Network-Only (nicht cachen) ────────────────────────────────
+  if (url.hostname === 'tile.openstreetmap.org' ||
+      url.hostname === 'tiles.openseamap.org' ||
+      url.hostname.endsWith('.githubusercontent.com')) {
+    e.respondWith(fetch(e.request).catch(() => new Response('', { status: 503 })));
+    return;
+  }
+
   // ── Alle anderen Assets: Cache-First ─────────────────────────────────────
   e.respondWith(
     caches.match(e.request).then(cached => {
