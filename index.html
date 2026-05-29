@@ -437,7 +437,7 @@ function initCountryLayer() {
         type: 'fill',
         source: 'countries',
         // Start with a filter that never matches (invisible)
-        filter: ['==', ['get', 'ISO_A2'], '__none__'],
+        filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
           'fill-color': '#0052cc',
           'fill-opacity': 0.50
@@ -466,20 +466,29 @@ function initCountryLayer() {
 function updateCountryHighlight() {
   if (!MAP || !GEO_LOADED) return;
   const highlight = document.getElementById('map-toggle')?.checked;
+
+  // Alle 2-Letter-Codes der besuchten Häfen extrahieren
   const visitedCodes = [...new Set(
     PORTS.filter(p => S.vp.includes(p.id) && p.cc).map(p => p.cc)
   )];
 
   if (highlight && visitedCodes.length > 0) {
-    // 'in' with an expression needle requires MapLibre >=1.15.
-    // Use the equivalent ['match'] approach which works on all MapLibre GL JS versions:
-    //   ['match', ['get', 'ISO_A2'], [...visitedCodes], true, false]
-    // combined with a filter on the boolean result.
-    MAP.setFilter('countries-visited',
-      ['match', ['get', 'ISO_A2'], visitedCodes, true, false]
-    );
+    // Basis-Filter mit korrektem Property-Namen des geo-countries Datasets
+    const filter = ['any', ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, true, false]];
+
+    // Workaround für Natural-Earth-Lücken ("-99" Problem bei Ländern mit Überseegebieten)
+    const specialNames = [];
+    if (visitedCodes.includes('FR')) specialNames.push('France');
+    if (visitedCodes.includes('NO')) specialNames.push('Norway');
+
+    // Falls nötig, Namen-Match zum Filter hinzufügen
+    if (specialNames.length > 0) {
+      filter.push(['match', ['get', 'name'], specialNames, true, false]);
+    }
+
+    MAP.setFilter('countries-visited', filter);
   } else {
-    // Hide the layer when toggle is off or no ports visited
+    // Layer verstecken, wenn Toggle aus ist oder nichts besucht wurde
     MAP.setFilter('countries-visited', ['==', ['literal', false], true]);
   }
 }
