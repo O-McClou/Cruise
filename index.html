@@ -824,16 +824,17 @@ function drawMarkers() {
   }
 
   // ── Source mit Clustering ─────────────────────────────────────────────────
+  // clusterRadius klein halten → mehr, aber sichtbarere Cluster bei Weltansicht
   MAP.addSource('ports', {
     type: 'geojson',
     data: geojson,
     cluster: true,
-    clusterMaxZoom: 12,    // Cluster lösen sich erst bei Zoom 12+ auf → in jeder Stufe sichtbar
-    clusterRadius: 60,     // Radius in Pixeln
-    clusterMinPoints: 2    // Mindestens 2 Punkte für einen Cluster → Einzelhäfen immer als Punkt
+    clusterMaxZoom: 11,
+    clusterRadius: 40,
+    clusterMinPoints: 2
   });
 
-  // ── Cluster: Äußerer Glow-Ring (Badge-Halo) ───────────────────────────────
+  // ── Cluster: Äußerer Glow-Halo ────────────────────────────────────────────
   MAP.addLayer({
     id: 'clusters-glow',
     type: 'circle',
@@ -841,18 +842,21 @@ function drawMarkers() {
     filter: ['has', 'point_count'],
     paint: {
       'circle-color': '#c9a84c',
+      // Zoom-abhängig: bei Weltansicht groß genug um sichtbar zu sein
       'circle-radius': [
-        'interpolate', ['linear'], ['get', 'point_count'],
-        2,  28,
-        20, 36,
-        80, 46
+        'interpolate', ['linear'], ['zoom'],
+        0, 22,
+        3, 26,
+        6, 30,
+        9, 36,
+        12, 44
       ],
-      'circle-blur': 0.85,
-      'circle-opacity': 0.20
+      'circle-blur': 0.9,
+      'circle-opacity': 0.22
     }
   });
 
-  // ── Cluster: Gold-Badge (Kreis) ───────────────────────────────────────────
+  // ── Cluster: Gold-Badge ───────────────────────────────────────────────────
   MAP.addLayer({
     id: 'clusters',
     type: 'circle',
@@ -860,15 +864,18 @@ function drawMarkers() {
     filter: ['has', 'point_count'],
     paint: {
       'circle-color': '#c9a84c',
+      // Zoom-abhängig: konstant gut sichtbar in jeder Stufe
       'circle-radius': [
-        'interpolate', ['linear'], ['get', 'point_count'],
-        2,  18,
-        20, 24,
-        80, 32
+        'interpolate', ['linear'], ['zoom'],
+        0, 14,
+        3, 16,
+        6, 19,
+        9, 24,
+        12, 30
       ],
-      'circle-stroke-color': 'rgba(201,168,76,0.35)',
-      'circle-stroke-width': 6,
-      'circle-opacity': 0.92
+      'circle-stroke-color': 'rgba(201,168,76,0.40)',
+      'circle-stroke-width': 5,
+      'circle-opacity': 0.95
     }
   });
 
@@ -881,17 +888,17 @@ function drawMarkers() {
     layout: {
       'text-field': ['get', 'point_count_abbreviated'],
       'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-      'text-size': 13,
+      'text-size': ['interpolate', ['linear'], ['zoom'], 0, 10, 6, 12, 12, 14],
       'text-allow-overlap': true
     },
     paint: {
       'text-color': '#1a0e00',
-      'text-halo-color': 'rgba(255,255,255,0.15)',
+      'text-halo-color': 'rgba(255,255,255,0.2)',
       'text-halo-width': 0.5
     }
   });
 
-  // ── Einzelne Punkte (nicht geclustert): Glow outer ───────────────────────
+  // ── Einzelne Punkte: Glow outer ───────────────────────────────────────────
   MAP.addLayer({
     id: 'ports-glow-outer',
     type: 'circle',
@@ -900,15 +907,11 @@ function drawMarkers() {
     paint: {
       'circle-radius': [
         'interpolate', ['linear'], ['zoom'],
-        0,  10,
-        2,  12,
-        5,  16,
-        8,  22,
-        12, 28
+        0, 14, 5, 16, 8, 20, 12, 26
       ],
       'circle-color': '#c9a84c',
-      'circle-blur': 1.4,
-      'circle-opacity': 0.28
+      'circle-blur': 1.2,
+      'circle-opacity': 0.30
     }
   });
 
@@ -921,14 +924,11 @@ function drawMarkers() {
     paint: {
       'circle-radius': [
         'interpolate', ['linear'], ['zoom'],
-        1,  5,
-        4,  8,
-        8,  12,
-        12, 16
+        0, 8, 5, 10, 8, 13, 12, 17
       ],
       'circle-color': '#f5e8c0',
       'circle-blur': 0.5,
-      'circle-opacity': 0.40
+      'circle-opacity': 0.45
     }
   });
 
@@ -941,14 +941,10 @@ function drawMarkers() {
     paint: {
       'circle-radius': [
         'interpolate', ['linear'], ['zoom'],
-        0,  4,
-        2,  5,
-        5,  6,
-        8,  7,
-        12, 9
+        0, 5, 4, 6, 8, 7, 12, 9
       ],
       'circle-color': '#c9a84c',
-      'circle-stroke-color': 'rgba(255,255,255,0.90)',
+      'circle-stroke-color': 'rgba(255,255,255,0.92)',
       'circle-stroke-width': 1.5,
       'circle-opacity': 1.0,
       'circle-blur': 0
