@@ -655,8 +655,9 @@ function initMap() {
   );
 
   MAP.on('load', () => {
-    initCountryLayer();
-    renderMap();
+    initCountryLayer();   // startet async fetch für Länderdaten
+    // Häfen sofort zeichnen – kein Warten auf Länderdaten nötig
+    drawMarkers();
   });
 
   // Fallback: falls openfreemap.org nicht erreichbar (z.B. offline ohne Cache),
@@ -739,6 +740,7 @@ function initCountryLayer() {
       });
 
       GEO_LOADED = true;
+      // Karte sofort rendern; wenn noch nicht loaded, wartet renderMap auf idle
       renderMap();
     })
     .catch(err => {
@@ -786,7 +788,11 @@ function updateCountryHighlight() {
 
 function renderMap() {
   if (!MAP) return;
-  if (!MAP.loaded()) return;
+  if (!MAP.loaded()) {
+    // Karte noch nicht bereit → beim nächsten idle-Event erneut versuchen
+    MAP.once('idle', () => renderMap());
+    return;
+  }
   updateCountryHighlight();
   drawMarkers();
 }
@@ -803,10 +809,18 @@ function drawMarkers() {
 
   const geojson = { type: 'FeatureCollection', features };
 
-  // Wenn Source bereits existiert, nur Daten aktualisieren
+  // Source existiert → nur Daten aktualisieren, ABER nur wenn Layer auch da sind
   if (MAP.getSource('ports')) {
-    MAP.getSource('ports').setData(geojson);
-    return;
+    if (MAP.getLayer('ports-circle')) {
+      MAP.getSource('ports').setData(geojson);
+      return;
+    }
+    // Source da, Layer fehlen (nach Style-Reset) → alles sauber abreißen
+    ['ports-circle','ports-glow-mid','ports-glow-outer',
+     'cluster-count','clusters','clusters-glow'].forEach(id => {
+      if (MAP.getLayer(id)) MAP.removeLayer(id);
+    });
+    MAP.removeSource('ports');
   }
 
   // ── Source mit Clustering ─────────────────────────────────────────────────
@@ -814,8 +828,9 @@ function drawMarkers() {
     type: 'geojson',
     data: geojson,
     cluster: true,
-    clusterMaxZoom: 9,   // Ab Zoom 9+ lösen sich Cluster auf
-    clusterRadius: 55    // Pixel-Radius in dem Punkte zu einem Cluster werden
+    clusterMaxZoom: 12,    // Cluster lösen sich erst bei Zoom 12+ auf → in jeder Stufe sichtbar
+    clusterRadius: 60,     // Radius in Pixeln
+    clusterMinPoints: 2    // Mindestens 2 Punkte für einen Cluster → Einzelhäfen immer als Punkt
   });
 
   // ── Cluster: Äußerer Glow-Ring (Badge-Halo) ───────────────────────────────
@@ -885,14 +900,15 @@ function drawMarkers() {
     paint: {
       'circle-radius': [
         'interpolate', ['linear'], ['zoom'],
-        1,  8,
-        4,  14,
-        8,  20,
-        12, 26
+        0,  10,
+        2,  12,
+        5,  16,
+        8,  22,
+        12, 28
       ],
       'circle-color': '#c9a84c',
       'circle-blur': 1.4,
-      'circle-opacity': 0.22
+      'circle-opacity': 0.28
     }
   });
 
@@ -925,10 +941,11 @@ function drawMarkers() {
     paint: {
       'circle-radius': [
         'interpolate', ['linear'], ['zoom'],
-        1,  2.5,
-        4,  4,
-        8,  6,
-        12, 8
+        0,  4,
+        2,  5,
+        5,  6,
+        8,  7,
+        12, 9
       ],
       'circle-color': '#c9a84c',
       'circle-stroke-color': 'rgba(255,255,255,0.90)',
