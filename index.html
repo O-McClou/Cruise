@@ -273,6 +273,10 @@ textarea.fi{resize:vertical;min-height:72px}
     <!-- REISEN -->
     <section id="tab-reisen" class="sec">
       <div class="sh"><h2 class="st">🗓️ Meine Reisen</h2><button class="btn-p" onclick="openVoyageModal()">+ Neue Reise</button></div>
+      <div style="display:flex;gap:7px;margin-bottom:10px">
+        <button class="btn-o" style="flex:1;padding:8px 10px;font-size:12px" onclick="exportVoyagesCSV()">⬇️ CSV Export</button>
+        <button class="btn-o" style="flex:1;padding:8px 10px;font-size:12px" onclick="document.getElementById('voyage-csv-in').click()">⬆️ CSV Import</button>
+      </div>
       <div id="v-list"></div>
     </section>
 
@@ -311,6 +315,9 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="pm" onclick="document.getElementById('imp-in').click()"><span class="pm-ic">⬆️</span><span class="pm-t">Backup importieren (JSON)</span><span>›</span></div>
         <div class="pm" onclick="exportPortsCSV()"><span class="pm-ic">📊</span><span class="pm-t">Hafenliste exportieren (CSV / Excel)</span><span>›</span></div>
         <div class="pm" onclick="document.getElementById('csv-in').click()"><span class="pm-ic">📥</span><span class="pm-t">Hafenliste importieren (CSV)</span><span>›</span></div>
+        <div class="pm" onclick="exportVoyagesCSV()"><span class="pm-ic">🗓️</span><span class="pm-t">Reisen exportieren (CSV / Excel)</span><span>›</span></div>
+        <div class="pm" onclick="document.getElementById('voyage-csv-in').click()"><span class="pm-ic">📅</span><span class="pm-t">Reisen importieren (CSV)</span><span>›</span></div>
+        <div class="pm" onclick="restoreHiddenPorts()"><span class="pm-ic">🔄</span><span class="pm-t">Gelöschte Häfen wiederherstellen</span><span>›</span></div>
         <div class="pm" onclick="resetAll()"><span class="pm-ic">🗑️</span><span class="pm-t" style="color:var(--bad)">Alle Daten zurücksetzen</span><span>›</span></div>
       </div>
       <p style="text-align:center;padding:18px;font-size:11.5px;color:var(--sub)">CruiseLog v4.0 · 500+ Häfen · 350+ Schiffe · 31 Reedereien · Mit ❤️ gemacht</p>
@@ -421,6 +428,64 @@ textarea.fi{resize:vertical;min-height:72px}
     <button class="btn-o" style="width:100%;padding:11px;font-size:13px;border-radius:10px;margin-top:8px" onclick="closeMo('mo-add-port')">Abbrechen</button>
   </div>
 </div>
+<input type="file" id="voyage-csv-in" accept=".csv" style="display:none" onchange="importVoyagesCSV(event)">
+
+<!-- MODAL: Hafen bearbeiten (built-in & custom) -->
+<div id="mo-edit-port" class="mo">
+  <div class="modal">
+    <div class="mo-handle"></div>
+    <div class="mo-t" id="ep-title">✏️ Hafen bearbeiten</div>
+    <input type="hidden" id="ep-id">
+    <input type="hidden" id="ep-is-custom">
+    <div class="fg">
+      <label class="fl">Hafenname *</label>
+      <input class="fi" id="ep-name" placeholder="z.B. Palma de Mallorca">
+    </div>
+    <div class="fg">
+      <label class="fl">Land *</label>
+      <input class="fi" id="ep-country" placeholder="z.B. Spanien" oninput="autoFillFlagEdit()">
+    </div>
+    <div class="fg">
+      <label class="fl">Länderflagge (Emoji) <span id="ep-flag-preview" style="font-size:18px;margin-left:6px"></span></label>
+      <input class="fi" id="ep-flag" placeholder="z.B. 🇪🇸" oninput="document.getElementById('ep-flag-preview').textContent=this.value">
+    </div>
+    <div class="fg">
+      <label class="fl">Region</label>
+      <select class="fi" id="ep-region">
+        <option value="mediterranean">🛥️ Mittelmeer</option>
+        <option value="caribbean">🏝️ Karibik</option>
+        <option value="northern_europe">🌲 Nordeuropa</option>
+        <option value="british_isles">🇬🇧 Britische Inseln</option>
+        <option value="arctic">❄️ Arktis &amp; Expeditionen</option>
+        <option value="north_america">🗽 Nordamerika</option>
+        <option value="new_england">🦞 Neuengland &amp; Kanada</option>
+        <option value="alaska">🏔️ Alaska</option>
+        <option value="mexico_pacific">🌮 Mexiko &amp; Mittelamerika</option>
+        <option value="canaries">🌺 Kanaren &amp; Atlantik</option>
+        <option value="asia">🏯 Asien</option>
+        <option value="middle_east">🕌 Naher Osten</option>
+        <option value="pacific">🌊 Pazifik &amp; Ozeanien</option>
+        <option value="south_america">🌎 Südamerika</option>
+        <option value="africa_indian">🦁 Afrika &amp; Ind. Ozean</option>
+        <option value="antarctica">🐧 Antarktis</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label class="fl">Breitengrad (lat)</label><input type="number" step="0.0001" class="fi" id="ep-lat" placeholder="z.B. 39.5696"></div>
+      <div class="fg"><label class="fl">Längengrad (lng)</label><input type="number" step="0.0001" class="fi" id="ep-lng" placeholder="z.B. 2.6502"></div>
+    </div>
+    <div class="fg">
+      <label class="fl">Ländercode (2 Buchstaben, z.B. ES)</label>
+      <input class="fi" id="ep-cc" placeholder="z.B. ES, DE, FR…" maxlength="2" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button class="btn-p" style="flex:1;padding:12px;font-size:13.5px;border-radius:10px" onclick="savePortEdit()">💾 Speichern</button>
+      <button onclick="deleteAnyPort()" style="background:var(--bad);color:#fff;border:none;border-radius:10px;padding:12px 16px;font-size:13.5px;font-weight:700;cursor:pointer">🗑️</button>
+    </div>
+    <button class="btn-o" style="width:100%;padding:11px;font-size:13px;border-radius:10px;margin-top:8px" onclick="closeMo('mo-edit-port')">Abbrechen</button>
+  </div>
+</div>
+
 <script>
 
 
@@ -4784,7 +4849,7 @@ const BADGES=[
 {id:'v10',icon:'🎉',name:'Kreuzfahrt-Veteran',desc:'10 Reisen dokumentiert',check:s=>s.voyages.length>=10},
 ];
 
-let S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''},customPorts:[]};
+let S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''},customPorts:[],portOverrides:{},hiddenPorts:[]};
 let pFilter='all',sFilter='all',editKey='';
 const uCountries=s=>[...new Set([...PORTS,...(s.customPorts||[])].filter(p=>s.vp.includes(p.id)).map(p=>p.country))];
 const uRegions=s=>[...new Set([...PORTS,...(s.customPorts||[])].filter(p=>s.vp.includes(p.id)).map(p=>p.region))];
@@ -4830,8 +4895,13 @@ function renderDashboard(){
 }
 
 function getAllPorts(){
+  const hidden=new Set(S.hiddenPorts||[]);
+  const overrides=S.portOverrides||{};
+  const builtIn=PORTS
+    .filter(p=>!hidden.has(p.id))
+    .map(p=>overrides[p.id]?{...p,...overrides[p.id]}:p);
   const custom=(S.customPorts||[]).map(p=>({...p,_custom:true}));
-  return [...PORTS,...custom];
+  return [...builtIn,...custom];
 }
 function renderPorts(){
   const all=getAllPorts();
@@ -4844,8 +4914,8 @@ function renderPorts(){
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||p.country.toLowerCase().includes(q));
   document.getElementById('p-list').innerHTML=list.length?list.map(p=>{
     const v=S.vp.includes(p.id);
-    const delBtn=p._custom?`<button onclick="event.stopPropagation();deleteCustomPort('${p.id}')" style="background:none;border:none;font-size:17px;cursor:pointer;opacity:.5;padding:4px;flex-shrink:0" title="Hafen löschen">🗑️</button>`:'';
-    return`<div class="ic ${v?'visited':''}" onclick="togglePort('${p.id}')"><div class="ic-icon">${p.flag||'🏳️'}</div><div class="ic-info"><div class="ic-name">${p.name}${p._custom?'<span style="font-size:9px;background:var(--gold);color:#fff;border-radius:4px;padding:1px 5px;margin-left:5px;font-weight:700">EIGENER</span>':''}</div><div class="ic-sub">${p.country} · ${REGIONS[p.region]?.icon||''} ${REGIONS[p.region]?.name||p.region}</div></div>${delBtn}<div class="ic-chk">${v?'✅':'⭕'}</div></div>`;
+    const editBtn=`<button onclick="event.stopPropagation();openPortEdit('${p.id}')" style="background:none;border:none;font-size:16px;cursor:pointer;opacity:.45;padding:4px 3px;flex-shrink:0" title="Bearbeiten">✏️</button>`;
+    return`<div class="ic ${v?'visited':''}" onclick="togglePort('${p.id}')"><div class="ic-icon">${p.flag||'🏳️'}</div><div class="ic-info"><div class="ic-name">${p.name}${p._custom?'<span style="font-size:9px;background:var(--gold);color:#fff;border-radius:4px;padding:1px 5px;margin-left:5px;font-weight:700">EIGENER</span>':''}</div><div class="ic-sub">${p.country} · ${REGIONS[p.region]?.icon||''} ${REGIONS[p.region]?.name||p.region}</div></div>${editBtn}<div class="ic-chk">${v?'✅':'⭕'}</div></div>`;
   }).join(''):'<div class="empty"><p>Keine Häfen gefunden.</p></div>';
 }
 function setFilter(type,val,btn){
@@ -4952,6 +5022,92 @@ function deleteCustomPort(id){
   S.vp=S.vp.filter(x=>x!==id);
   if(port)addAct('🗑️',`Eigener Hafen gelöscht: ${port.name}`);
   save();renderPorts();if(MAP)renderMap();toast('Hafen gelöscht');
+}
+
+// ── Hafen bearbeiten (alle Häfen) ─────────────────────────────────────────────
+// Für built-in Häfen werden Overrides in S.portOverrides gespeichert.
+// Custom-Häfen werden direkt in S.customPorts bearbeitet.
+function openPortEdit(id){
+  const port=getAllPorts().find(p=>p.id===id);
+  if(!port)return;
+  // Merge mit eventuell vorhandenem Override
+  const ov=(S.portOverrides||{})[id]||{};
+  const merged={...port,...ov};
+  document.getElementById('ep-id').value=id;
+  document.getElementById('ep-is-custom').value=port._custom?'1':'0';
+  document.getElementById('ep-title').textContent=port._custom?'✏️ Eigenen Hafen bearbeiten':'✏️ Hafen bearbeiten';
+  document.getElementById('ep-name').value=merged.name||'';
+  document.getElementById('ep-country').value=merged.country||'';
+  document.getElementById('ep-flag').value=merged.flag||'';
+  document.getElementById('ep-flag-preview').textContent=merged.flag||'';
+  document.getElementById('ep-region').value=merged.region||'mediterranean';
+  document.getElementById('ep-lat').value=merged.lat!=null?merged.lat:'';
+  document.getElementById('ep-lng').value=merged.lng!=null?merged.lng:'';
+  document.getElementById('ep-cc').value=merged.cc||'';
+  openMo('mo-edit-port');
+}
+
+function autoFillFlagEdit(){
+  const country=document.getElementById('ep-country').value.trim();
+  const flag=COUNTRY_FLAGS[country]||'';
+  const cc=COUNTRY_CC[country]||'';
+  if(flag){document.getElementById('ep-flag').value=flag;document.getElementById('ep-flag-preview').textContent=flag;}
+  if(cc&&!document.getElementById('ep-cc').value)document.getElementById('ep-cc').value=cc;
+}
+
+function savePortEdit(){
+  const id=document.getElementById('ep-id').value;
+  const isCustom=document.getElementById('ep-is-custom').value==='1';
+  const name=document.getElementById('ep-name').value.trim();
+  const country=document.getElementById('ep-country').value.trim();
+  if(!name||!country){toast('Hafenname und Land sind Pflichtfelder');return;}
+  const patch={
+    name,country,
+    flag:document.getElementById('ep-flag').value.trim()||COUNTRY_FLAGS[country]||'🏳️',
+    region:document.getElementById('ep-region').value,
+    lat:document.getElementById('ep-lat').value!==''?parseFloat(document.getElementById('ep-lat').value):null,
+    lng:document.getElementById('ep-lng').value!==''?parseFloat(document.getElementById('ep-lng').value):null,
+    cc:(document.getElementById('ep-cc').value.trim()||COUNTRY_CC[country]||'').toUpperCase()
+  };
+  if(isCustom){
+    // Direct edit of custom port
+    const idx=(S.customPorts||[]).findIndex(p=>p.id===id);
+    if(idx>=0)S.customPorts[idx]={...S.customPorts[idx],...patch};
+  } else {
+    // Store override for built-in port
+    if(!S.portOverrides)S.portOverrides={};
+    S.portOverrides[id]=patch;
+  }
+  addAct('✏️',`Hafen bearbeitet: ${name}`);
+  save();closeMo('mo-edit-port');renderPorts();if(MAP)renderMap();toast(`✅ ${name} gespeichert`);
+}
+
+function deleteAnyPort(){
+  const id=document.getElementById('ep-id').value;
+  const isCustom=document.getElementById('ep-is-custom').value==='1';
+  const name=document.getElementById('ep-name').value.trim()||id;
+  if(!confirm(`„${name}" wirklich löschen?${!isCustom?' Der Hafen bleibt in der Original-Liste, wird aber für dich ausgeblendet.':''}`))return;
+  if(isCustom){
+    S.customPorts=(S.customPorts||[]).filter(p=>p.id!==id);
+  } else {
+    // Mark built-in port as hidden
+    if(!S.hiddenPorts)S.hiddenPorts=[];
+    if(!S.hiddenPorts.includes(id))S.hiddenPorts.push(id);
+    // Also remove any override
+    if(S.portOverrides)delete S.portOverrides[id];
+  }
+  S.vp=S.vp.filter(x=>x!==id);
+  addAct('🗑️',`Hafen gelöscht: ${name}`);
+  save();closeMo('mo-edit-port');renderPorts();if(MAP)renderMap();toast('Hafen gelöscht');
+}
+
+function restoreHiddenPorts(){
+  const cnt=(S.hiddenPorts||[]).length;
+  if(cnt===0){toast('Keine versteckten Häfen vorhanden');return;}
+  if(!confirm(`${cnt} gelöschte${cnt===1?'n':''} Hafen/Häfen wiederherstellen?`))return;
+  S.hiddenPorts=[];
+  S.portOverrides=S.portOverrides||{};
+  save();renderPorts();if(MAP)renderMap();toast(`✅ ${cnt} Hafen/Häfen wiederhergestellt`);
 }
 
 // ── CSV Export (Excel-kompatibel mit BOM) ────────────────────────────────────
@@ -5092,6 +5248,90 @@ function saveVoyage(){
 }
 function delVoyage(i){if(confirm('Reise löschen?')){S.voyages.splice(i,1);save();renderVoyages();toast('Reise gelöscht');}}
 
+// ── Reisen CSV Export ──────────────────────────────────────────────────────────
+function exportVoyagesCSV(){
+  if(!S.voyages.length){toast('Keine Reisen zum Exportieren');return;}
+  const header=['Reisename','Reederei','Schiff','Abfahrt','Rückkehr','Notizen','Erstellt'];
+  const rows=S.voyages.map(v=>[
+    v.name||'',
+    v.line||'',
+    v.ship||'',
+    v.departure||'',
+    v.return||'',
+    v.notes||'',
+    v.created?new Date(v.created).toLocaleDateString('de-DE'):''
+  ]);
+  const csvContent=[header,...rows].map(row=>
+    row.map(cell=>{
+      const s=String(cell);
+      return s.includes(';')||s.includes('"')||s.includes('\n')?`"${s.replace(/"/g,'""')}"`  :s;
+    }).join(';')
+  ).join('\r\n');
+  const bom='\uFEFF';
+  const blob=new Blob([bom+csvContent],{type:'text/csv;charset=utf-8'});
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'cruiselog-reisen.csv'});
+  a.click();URL.revokeObjectURL(a.href);
+  toast(`✅ ${S.voyages.length} Reisen exportiert!`);
+}
+
+// ── Reisen CSV Import ─────────────────────────────────────────────────────────
+function importVoyagesCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const text=ev.target.result.replace(/^\uFEFF/,'');
+      const lines=text.split(/\r?\n/).filter(l=>l.trim());
+      if(lines.length<2){toast('Keine Daten in der CSV-Datei');return;}
+      const sep=lines[0].includes(';')?';':',';
+      const parseRow=line=>{
+        const cells=[];let cur='',inQ=false;
+        for(let i=0;i<line.length;i++){
+          const c=line[i];
+          if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
+          else if(c==='"'){inQ=!inQ;}
+          else if(c===sep&&!inQ){cells.push(cur);cur='';}
+          else cur+=c;
+        }
+        cells.push(cur);return cells;
+      };
+      const header=parseRow(lines[0]).map(h=>h.toLowerCase().trim());
+      const iName=header.findIndex(h=>h.includes('reise')||h.includes('name'));
+      const iLine=header.findIndex(h=>h.includes('reede')||h.includes('line')||h.includes('reederei'));
+      const iShip=header.findIndex(h=>h.includes('schiff')||h.includes('ship'));
+      const iDep=header.findIndex(h=>h.includes('abfahrt')||h.includes('dep'));
+      const iRet=header.findIndex(h=>h.includes('rück')||h.includes('return'));
+      const iNotes=header.findIndex(h=>h.includes('notiz')||h.includes('note'));
+      if(iName<0){toast('CSV-Format ungültig: Spalte „Reisename" erforderlich');return;}
+      const prev=unlockedBadges().map(b=>b.id);
+      let added=0,skipped=0;
+      lines.slice(1).forEach(line=>{
+        if(!line.trim())return;
+        const cells=parseRow(line);
+        const name=(cells[iName]||'').trim();
+        if(!name){skipped++;return;}
+        // Skip duplicates by name
+        if(S.voyages.some(v=>v.name===name)){skipped++;return;}
+        S.voyages.push({
+          name,
+          line:iLine>=0?cells[iLine]||'':'',
+          ship:iShip>=0?cells[iShip]||'':'',
+          departure:iDep>=0?cells[iDep]||'':'',
+          return:iRet>=0?cells[iRet]||'':'',
+          notes:iNotes>=0?cells[iNotes]||'':'',
+          created:new Date().toISOString()
+        });
+        added++;
+      });
+      addAct('🗓️',`${added} Reisen importiert`);
+      save();renderVoyages();checkBadges(prev);
+      toast(`✅ ${added} Reisen importiert${skipped?' · '+skipped+' übersprungen':''}`);
+    }catch(err){console.error(err);toast('Fehler beim CSV-Import');}
+    e.target.value='';
+  };
+  reader.readAsText(file,'utf-8');
+}
+
 function renderBadges(){
   const ul=unlockedBadges(),tot=BADGES.length,cnt=ul.length,pct=Math.round(cnt/tot*100);
   document.getElementById('b-count').textContent=`${cnt} / ${tot} freigeschaltet`;
@@ -5136,7 +5376,7 @@ function importData(e){
 }
 function resetAll(){
   if(confirm('Alle Daten wirklich zurücksetzen? Dies kann nicht rückgängig gemacht werden.')){
-    S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''},customPorts:[]};
+    S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''},customPorts:[],portOverrides:{},hiddenPorts:[]};
     save();navigate('uebersicht');toast('Daten zurückgesetzt');
   }
 }
