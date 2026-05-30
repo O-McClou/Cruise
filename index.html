@@ -198,10 +198,16 @@ textarea.fi{resize:vertical;min-height:72px}
     <!-- HÄFEN -->
     <section id="tab-haefen" class="sec">
       <div class="sh"><h2 class="st">⚓ Kreuzfahrthäfen</h2><span id="p-count" style="font-size:12.5px;color:var(--sub);font-weight:700"></span></div>
+      <div style="display:flex;gap:7px;margin-bottom:10px">
+        <button class="btn-p" style="flex:1;padding:8px 10px;font-size:12px" onclick="openMo('mo-add-port')">➕ Hafen hinzufügen</button>
+        <button class="btn-o" style="flex:1;padding:8px 10px;font-size:12px" onclick="exportPortsCSV()">⬇️ CSV Export</button>
+        <button class="btn-o" style="flex:1;padding:8px 10px;font-size:12px" onclick="document.getElementById('csv-in').click()">⬆️ CSV Import</button>
+      </div>
       <div class="srch"><span>🔍</span><input type="text" id="p-srch" placeholder="Hafen oder Land suchen…" oninput="renderPorts()"></div>
       <div class="ftabs">
         <button class="ftab active" onclick="setFilter('port','all',this)">🌍 Alle</button>
         <button class="ftab" onclick="setFilter('port','visited',this)">✅ Besucht</button>
+        <button class="ftab" onclick="setFilter('port','custom',this)">✏️ Eigene</button>
         <button class="ftab" onclick="setFilter('port','caribbean',this)">🏝️ Karibik</button>
         <button class="ftab" onclick="setFilter('port','mediterranean',this)">🛥️ Mittelmeer</button>
         <button class="ftab" onclick="setFilter('port','northern_europe',this)">🌲 Nordeuropa</button>
@@ -301,8 +307,10 @@ textarea.fi{resize:vertical;min-height:72px}
       </div>
       <div class="card">
         <div class="card-t">Daten</div>
-        <div class="pm" onclick="exportData()"><span class="pm-ic">⬇️</span><span class="pm-t">Daten exportieren (JSON)</span><span>›</span></div>
-        <div class="pm" onclick="document.getElementById('imp-in').click()"><span class="pm-ic">⬆️</span><span class="pm-t">Daten importieren</span><span>›</span></div>
+        <div class="pm" onclick="exportData()"><span class="pm-ic">⬇️</span><span class="pm-t">Komplettbackup exportieren (JSON)</span><span>›</span></div>
+        <div class="pm" onclick="document.getElementById('imp-in').click()"><span class="pm-ic">⬆️</span><span class="pm-t">Backup importieren (JSON)</span><span>›</span></div>
+        <div class="pm" onclick="exportPortsCSV()"><span class="pm-ic">📊</span><span class="pm-t">Hafenliste exportieren (CSV / Excel)</span><span>›</span></div>
+        <div class="pm" onclick="document.getElementById('csv-in').click()"><span class="pm-ic">📥</span><span class="pm-t">Hafenliste importieren (CSV)</span><span>›</span></div>
         <div class="pm" onclick="resetAll()"><span class="pm-ic">🗑️</span><span class="pm-t" style="color:var(--bad)">Alle Daten zurücksetzen</span><span>›</span></div>
       </div>
       <p style="text-align:center;padding:18px;font-size:11.5px;color:var(--sub)">CruiseLog v4.0 · 500+ Häfen · 350+ Schiffe · 31 Reedereien · Mit ❤️ gemacht</p>
@@ -354,6 +362,65 @@ textarea.fi{resize:vertical;min-height:72px}
 <div id="toast" class="toast"></div>
 <div id="bdge-pop" class="bdge-pop"></div>
 <input type="file" id="imp-in" accept=".json" style="display:none" onchange="importData(event)">
+<input type="file" id="csv-in" accept=".csv" style="display:none" onchange="importPortsCSV(event)">
+
+<!-- MODAL: Neuen Hafen hinzufügen -->
+<div id="mo-add-port" class="mo">
+  <div class="modal">
+    <div class="mo-handle"></div>
+    <div class="mo-t">➕ Neuen Hafen hinzufügen</div>
+    <div class="fg">
+      <label class="fl">Hafenname *</label>
+      <input class="fi" id="ap-name" placeholder="z.B. Palma de Mallorca">
+    </div>
+    <div class="fg">
+      <label class="fl">Land *</label>
+      <input class="fi" id="ap-country" placeholder="z.B. Spanien" oninput="autoFillFlag()">
+    </div>
+    <div class="fg">
+      <label class="fl">Länderflagge (Emoji) <span id="ap-flag-preview" style="font-size:18px;margin-left:6px"></span></label>
+      <input class="fi" id="ap-flag" placeholder="Wird automatisch ermittelt…" oninput="document.getElementById('ap-flag-preview').textContent=this.value">
+    </div>
+    <div class="fg">
+      <label class="fl">Region</label>
+      <select class="fi" id="ap-region">
+        <option value="mediterranean">🛥️ Mittelmeer</option>
+        <option value="caribbean">🏝️ Karibik</option>
+        <option value="northern_europe">🌲 Nordeuropa</option>
+        <option value="british_isles">🇬🇧 Britische Inseln</option>
+        <option value="arctic">❄️ Arktis &amp; Expeditionen</option>
+        <option value="north_america">🗽 Nordamerika</option>
+        <option value="new_england">🦞 Neuengland &amp; Kanada</option>
+        <option value="alaska">🏔️ Alaska</option>
+        <option value="mexico_pacific">🌮 Mexiko &amp; Mittelamerika</option>
+        <option value="canaries">🌺 Kanaren &amp; Atlantik</option>
+        <option value="asia">🏯 Asien</option>
+        <option value="middle_east">🕌 Naher Osten</option>
+        <option value="pacific">🌊 Pazifik &amp; Ozeanien</option>
+        <option value="south_america">🌎 Südamerika</option>
+        <option value="africa_indian">🦁 Afrika &amp; Ind. Ozean</option>
+        <option value="antarctica">🐧 Antarktis</option>
+      </select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label class="fl">Breitengrad (lat)</label><input type="number" step="0.0001" class="fi" id="ap-lat" placeholder="z.B. 39.5696"></div>
+      <div class="fg"><label class="fl">Längengrad (lng)</label><input type="number" step="0.0001" class="fi" id="ap-lng" placeholder="z.B. 2.6502"></div>
+    </div>
+    <div style="font-size:11px;color:var(--sub);margin:-6px 0 12px;line-height:1.5">
+      💡 Koordinaten findest du auf <a href="https://maps.google.com" target="_blank" style="color:var(--primary)">Google Maps</a>: Rechtsklick auf den Hafen → Koordinaten kopieren.
+    </div>
+    <div class="fg">
+      <label class="fl">Ländercode (2 Buchstaben, z.B. ES)</label>
+      <input class="fi" id="ap-cc" placeholder="z.B. ES, DE, FR…" maxlength="2" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <input type="checkbox" id="ap-visited" style="accent-color:var(--primary);transform:scale(1.3);cursor:pointer">
+      <label for="ap-visited" style="font-size:13.5px;font-weight:600;cursor:pointer">Diesen Hafen als besucht markieren</label>
+    </div>
+    <button class="btn-p" style="width:100%;padding:13px;font-size:14px;border-radius:10px;margin-top:4px" onclick="saveCustomPort()">Hafen speichern</button>
+    <button class="btn-o" style="width:100%;padding:11px;font-size:13px;border-radius:10px;margin-top:8px" onclick="closeMo('mo-add-port')">Abbrechen</button>
+  </div>
+</div>
 <script>
 
 
@@ -469,7 +536,7 @@ function updateCountryHighlight() {
 
   // Alle 2-Letter-Codes der besuchten Häfen extrahieren
   const visitedCodes = [...new Set(
-    PORTS.filter(p => S.vp.includes(p.id) && p.cc).map(p => p.cc)
+    getAllPorts().filter(p => S.vp.includes(p.id) && p.cc).map(p => p.cc)
   )];
 
   if (highlight && visitedCodes.length > 0) {
@@ -501,7 +568,7 @@ function renderMap() {
 }
 
 function drawMarkers() {
-  const features = PORTS
+  const features = getAllPorts()
     .filter(p => S.vp.includes(p.id) && p.lat != null && p.lng != null)
     .map(p => ({
       type: 'Feature',
@@ -4717,12 +4784,12 @@ const BADGES=[
 {id:'v10',icon:'🎉',name:'Kreuzfahrt-Veteran',desc:'10 Reisen dokumentiert',check:s=>s.voyages.length>=10},
 ];
 
-let S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''}};
+let S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''},customPorts:[]};
 let pFilter='all',sFilter='all',editKey='';
-const uCountries=s=>[...new Set(PORTS.filter(p=>s.vp.includes(p.id)).map(p=>p.country))];
-const uRegions=s=>[...new Set(PORTS.filter(p=>s.vp.includes(p.id)).map(p=>p.region))];
+const uCountries=s=>[...new Set([...PORTS,...(s.customPorts||[])].filter(p=>s.vp.includes(p.id)).map(p=>p.country))];
+const uRegions=s=>[...new Set([...PORTS,...(s.customPorts||[])].filter(p=>s.vp.includes(p.id)).map(p=>p.region))];
 const uLines=s=>[...new Set(SHIPS.filter(sh=>s.vs.includes(sh.id)).map(sh=>sh.line))];
-const portsByRegion=(s,r)=>PORTS.filter(p=>s.vp.includes(p.id)&&p.region===r);
+const portsByRegion=(s,r)=>[...PORTS,...(s.customPorts||[])].filter(p=>s.vp.includes(p.id)&&p.region===r);
 const getStats=()=>({ports:S.vp.length,countries:uCountries(S).length,ships:S.vs.length,regions:uRegions(S).length,lines:uLines(S).length});
 const unlockedBadges=()=>BADGES.filter(b=>b.check(S));
 const save=()=>localStorage.setItem('cl_de',JSON.stringify(S));
@@ -4749,7 +4816,7 @@ function renderDashboard(){
   const st=getStats();
   ['ports','countries','ships','regions','lines'].forEach(k=>document.getElementById('s-'+k).textContent=st[k]);
   document.getElementById('d-regions').innerHTML=Object.entries(REGIONS).map(([k,r])=>{
-    const c=portsByRegion(S,k).length,tot=PORTS.filter(p=>p.region===k).length,pct=tot>0?Math.round(c/tot*100):0;
+    const c=portsByRegion(S,k).length,tot=getAllPorts().filter(p=>p.region===k).length,pct=tot>0?Math.round(c/tot*100):0;
     return`<div class="rbar"><div class="rbar-h"><span class="rbar-n">${r.icon} ${r.name}</span><span class="rbar-c">${c}/${tot}</span></div><div class="pbar"><div class="pfill" style="width:${pct}%;background:${r.color}"></div></div></div>`;
   }).join('');
   const pm=[1,5,10,25,50,100,200,300],sm=[1,5,10,20,50];
@@ -4762,16 +4829,23 @@ function renderDashboard(){
   ad.innerHTML=S.activity.length?[...S.activity].reverse().slice(0,10).map(a=>`<div class="ai"><span class="ai-ic">${a.icon}</span><span class="ai-tx">${a.text}</span><span class="ai-tm">${a.time}</span></div>`).join(''):'<p style="font-size:13px;color:var(--sub);padding:6px 0">Noch keine Aktivität – fang an zu tracken!</p>';
 }
 
+function getAllPorts(){
+  const custom=(S.customPorts||[]).map(p=>({...p,_custom:true}));
+  return [...PORTS,...custom];
+}
 function renderPorts(){
-  document.getElementById('p-count').textContent=`${S.vp.length} / ${PORTS.length} besucht`;
+  const all=getAllPorts();
+  document.getElementById('p-count').textContent=`${S.vp.length} / ${all.length} besucht`;
   const q=document.getElementById('p-srch').value.toLowerCase();
-  let list=PORTS;
-  if(pFilter==='visited')list=PORTS.filter(p=>S.vp.includes(p.id));
-  else if(pFilter!=='all')list=PORTS.filter(p=>p.region===pFilter);
+  let list=all;
+  if(pFilter==='visited')list=all.filter(p=>S.vp.includes(p.id));
+  else if(pFilter==='custom')list=all.filter(p=>p._custom);
+  else if(pFilter!=='all')list=all.filter(p=>p.region===pFilter);
   if(q)list=list.filter(p=>p.name.toLowerCase().includes(q)||p.country.toLowerCase().includes(q));
   document.getElementById('p-list').innerHTML=list.length?list.map(p=>{
     const v=S.vp.includes(p.id);
-    return`<div class="ic ${v?'visited':''}" onclick="togglePort('${p.id}')"><div class="ic-icon">${p.flag}</div><div class="ic-info"><div class="ic-name">${p.name}</div><div class="ic-sub">${p.country} · ${REGIONS[p.region]?.icon} ${REGIONS[p.region]?.name}</div></div><div class="ic-chk">${v?'✅':'⭕'}</div></div>`;
+    const delBtn=p._custom?`<button onclick="event.stopPropagation();deleteCustomPort('${p.id}')" style="background:none;border:none;font-size:17px;cursor:pointer;opacity:.5;padding:4px;flex-shrink:0" title="Hafen löschen">🗑️</button>`:'';
+    return`<div class="ic ${v?'visited':''}" onclick="togglePort('${p.id}')"><div class="ic-icon">${p.flag||'🏳️'}</div><div class="ic-info"><div class="ic-name">${p.name}${p._custom?'<span style="font-size:9px;background:var(--gold);color:#fff;border-radius:4px;padding:1px 5px;margin-left:5px;font-weight:700">EIGENER</span>':''}</div><div class="ic-sub">${p.country} · ${REGIONS[p.region]?.icon||''} ${REGIONS[p.region]?.name||p.region}</div></div>${delBtn}<div class="ic-chk">${v?'✅':'⭕'}</div></div>`;
   }).join(''):'<div class="empty"><p>Keine Häfen gefunden.</p></div>';
 }
 function setFilter(type,val,btn){
@@ -4782,11 +4856,208 @@ function setFilter(type,val,btn){
 }
 function togglePort(id){
   const prev=unlockedBadges().map(b=>b.id);
-  const port=PORTS.find(p=>p.id===id);
+  const port=getAllPorts().find(p=>p.id===id);
+  if(!port)return;
   if(S.vp.includes(id)){S.vp=S.vp.filter(x=>x!==id);addAct('⚓',`${port.name} entfernt`);toast(`${port.name} entfernt`);}
   else{S.vp.push(id);addAct('⚓',`${port.name}, ${port.country} besucht`);toast(`✅ ${port.name} besucht!`);}
   save();renderPorts();checkBadges(prev);if(MAP)renderMap();
 }
+
+// ── Länderflaggen-Mapping ─────────────────────────────────────────────────
+const COUNTRY_FLAGS={
+  'Deutschland':'🇩🇪','Österreich':'🇦🇹','Schweiz':'🇨🇭','Frankreich':'🇫🇷','Spanien':'🇪🇸',
+  'Italien':'🇮🇹','Portugal':'🇵🇹','Griechenland':'🇬🇷','Kroatien':'🇭🇷','Türkei':'🇹🇷',
+  'Norwegen':'🇳🇴','Schweden':'🇸🇪','Dänemark':'🇩🇰','Finnland':'🇫🇮','Island':'🇮🇸',
+  'Vereinigtes Königreich':'🇬🇧','Irland':'🇮🇪','Niederlande':'🇳🇱','Belgien':'🇧🇪',
+  'USA':'🇺🇸','Kanada':'🇨🇦','Mexiko':'🇲🇽','Kuba':'🇨🇺','Jamaika':'🇯🇲',
+  'Bahamas':'🇧🇸','Barbados':'🇧🇧','Dominikanische Republik':'🇩🇴','Puerto Rico':'🇵🇷',
+  'Brasilien':'🇧🇷','Argentinien':'🇦🇷','Chile':'🇨🇱','Peru':'🇵🇪','Kolumbien':'🇨🇴',
+  'Japan':'🇯🇵','China':'🇨🇳','Südkorea':'🇰🇷','Vietnam':'🇻🇳','Thailand':'🇹🇭',
+  'Singapur':'🇸🇬','Malaysia':'🇲🇾','Indonesien':'🇮🇩','Philippinen':'🇵🇭',
+  'Indien':'🇮🇳','Sri Lanka':'🇱🇰','Emirate':'🇦🇪','VAE':'🇦🇪','Oman':'🇴🇲',
+  'Saudi-Arabien':'🇸🇦','Ägypten':'🇪🇬','Marokko':'🇲🇦','Tunesien':'🇹🇳',
+  'Israel':'🇮🇱','Jordanien':'🇯🇴','Australien':'🇦🇺','Neuseeland':'🇳🇿',
+  'Südafrika':'🇿🇦','Kenia':'🇰🇪','Tansania':'🇹🇿','Mauritius':'🇲🇺',
+  'Polen':'🇵🇱','Estland':'🇪🇪','Lettland':'🇱🇻','Litauen':'🇱🇹',
+  'Russland':'🇷🇺','Ukraine':'🇺🇦','Albanien':'🇦🇱','Montenegro':'🇲🇪',
+  'Bulgarien':'🇧🇬','Rumänien':'🇷🇴','Malta':'🇲🇹','Zypern':'🇨🇾',
+  'Algerien':'🇩🇿','Libyen':'🇱🇾','Monaco':'🇲🇨','Slowenien':'🇸🇮',
+  'Bosnien':'🇧🇦','Grönland':'🇬🇱','Spitzbergen':'🇸🇯','Norwegen/Svalbard':'🇸🇯',
+  'Panama':'🇵🇦','Costa Rica':'🇨🇷','Belize':'🇧🇿','Honduras':'🇭🇳',
+  'Guatemala':'🇬🇹','Nicaragua':'🇳🇮','El Salvador':'🇸🇻','Ecuador':'🇪🇨',
+  'Färöer':'🇫🇴','Azoren':'🇵🇹','Madeira':'🇵🇹','Kanarische Inseln':'🇮🇨',
+  'Martinique':'🇲🇶','Guadeloupe':'🇬🇵','Trinidad':'🇹🇹','Curaçao':'🇨🇼',
+};
+const COUNTRY_CC={
+  'Deutschland':'DE','Österreich':'AT','Schweiz':'CH','Frankreich':'FR','Spanien':'ES',
+  'Italien':'IT','Portugal':'PT','Griechenland':'GR','Kroatien':'HR','Türkei':'TR',
+  'Norwegen':'NO','Schweden':'SE','Dänemark':'DK','Finnland':'FI','Island':'IS',
+  'Vereinigtes Königreich':'GB','Irland':'IE','Niederlande':'NL','Belgien':'BE',
+  'USA':'US','Kanada':'CA','Mexiko':'MX','Kuba':'CU','Jamaika':'JM',
+  'Bahamas':'BS','Barbados':'BB','Dominikanische Republik':'DO','Puerto Rico':'PR',
+  'Brasilien':'BR','Argentinien':'AR','Chile':'CL','Peru':'PE','Kolumbien':'CO',
+  'Japan':'JP','China':'CN','Südkorea':'KR','Vietnam':'VN','Thailand':'TH',
+  'Singapur':'SG','Malaysia':'MY','Indonesien':'ID','Philippinen':'PH',
+  'Indien':'IN','Sri Lanka':'LK','Emirate':'AE','VAE':'AE','Oman':'OM',
+  'Saudi-Arabien':'SA','Ägypten':'EG','Marokko':'MA','Tunesien':'TN',
+  'Israel':'IL','Jordanien':'JO','Australien':'AU','Neuseeland':'NZ',
+  'Südafrika':'ZA','Kenia':'KE','Tansania':'TZ','Mauritius':'MU',
+  'Polen':'PL','Estland':'EE','Lettland':'LV','Litauen':'LT',
+  'Russland':'RU','Ukraine':'UA','Albanien':'AL','Montenegro':'ME',
+  'Bulgarien':'BG','Rumänien':'RO','Malta':'MT','Zypern':'CY',
+  'Algerien':'DZ','Libyen':'LY','Monaco':'MC','Slowenien':'SI',
+  'Panama':'PA','Costa Rica':'CR','Belize':'BZ','Honduras':'HN',
+  'Grönland':'GL','Spitzbergen':'SJ','Ecuador':'EC',
+};
+
+function autoFillFlag(){
+  const country=document.getElementById('ap-country').value.trim();
+  const flag=COUNTRY_FLAGS[country]||'';
+  const cc=COUNTRY_CC[country]||'';
+  if(flag){
+    document.getElementById('ap-flag').value=flag;
+    document.getElementById('ap-flag-preview').textContent=flag;
+  }
+  if(cc&&!document.getElementById('ap-cc').value)document.getElementById('ap-cc').value=cc;
+}
+
+function saveCustomPort(){
+  const name=document.getElementById('ap-name').value.trim();
+  const country=document.getElementById('ap-country').value.trim();
+  if(!name||!country){toast('Bitte Hafenname und Land angeben');return;}
+  const flag=document.getElementById('ap-flag').value.trim()||COUNTRY_FLAGS[country]||'🏳️';
+  const region=document.getElementById('ap-region').value;
+  const lat=parseFloat(document.getElementById('ap-lat').value)||null;
+  const lng=parseFloat(document.getElementById('ap-lng').value)||null;
+  const cc=(document.getElementById('ap-cc').value.trim()||COUNTRY_CC[country]||'').toUpperCase();
+  const visited=document.getElementById('ap-visited').checked;
+  // Create unique ID
+  const id='custom_'+Date.now()+'_'+name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,12);
+  if(!S.customPorts)S.customPorts=[];
+  S.customPorts.push({id,name,country,flag,region,lat,lng,cc,_custom:true});
+  if(visited)S.vp.push(id);
+  addAct('➕',`Eigener Hafen hinzugefügt: ${name}`);
+  save();closeMo('mo-add-port');renderPorts();if(MAP&&visited)renderMap();
+  toast(`✅ ${name} hinzugefügt!`);
+  // Reset form
+  ['ap-name','ap-country','ap-flag','ap-lat','ap-lng','ap-cc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ap-visited').checked=false;
+  document.getElementById('ap-flag-preview').textContent='';
+}
+
+function deleteCustomPort(id){
+  if(!confirm('Diesen eigenen Hafen wirklich löschen?'))return;
+  const port=(S.customPorts||[]).find(p=>p.id===id);
+  S.customPorts=(S.customPorts||[]).filter(p=>p.id!==id);
+  S.vp=S.vp.filter(x=>x!==id);
+  if(port)addAct('🗑️',`Eigener Hafen gelöscht: ${port.name}`);
+  save();renderPorts();if(MAP)renderMap();toast('Hafen gelöscht');
+}
+
+// ── CSV Export (Excel-kompatibel mit BOM) ────────────────────────────────────
+function exportPortsCSV(){
+  const all=getAllPorts();
+  const visited=new Set(S.vp);
+  const header=['Name','Land','Region','Länderflagge','Ländercode','Breitengrad','Längengrad','Besucht','Eigener Hafen'];
+  const rows=all.map(p=>[
+    p.name,
+    p.country,
+    REGIONS[p.region]?.name||p.region,
+    p.flag||'',
+    p.cc||'',
+    p.lat!=null?p.lat:'',
+    p.lng!=null?p.lng:'',
+    visited.has(p.id)?'Ja':'Nein',
+    p._custom?'Ja':'Nein'
+  ]);
+  const csvContent=[header,...rows].map(row=>
+    row.map(cell=>typeof cell==='string'&&(cell.includes(',')||cell.includes('"')||cell.includes('\n'))
+      ?`"${cell.replace(/"/g,'""')}"`
+      :cell
+    ).join(';')
+  ).join('\r\n');
+  // BOM für Excel-Kompatibilität
+  const bom='\uFEFF';
+  const blob=new Blob([bom+csvContent],{type:'text/csv;charset=utf-8'});
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:'cruiselog-haefen.csv'});
+  a.click();URL.revokeObjectURL(a.href);
+  toast(`✅ ${all.length} Häfen exportiert!`);
+}
+
+// ── CSV Import ────────────────────────────────────────────────────────────────
+function importPortsCSV(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const text=ev.target.result.replace(/^\uFEFF/,''); // BOM entfernen
+      const lines=text.split(/\r?\n/).filter(l=>l.trim());
+      if(lines.length<2){toast('Keine Daten in der CSV-Datei');return;}
+      const sep=lines[0].includes(';')?';':',';
+      const parseRow=line=>{
+        const cells=[];let cur='',inQ=false;
+        for(let i=0;i<line.length;i++){
+          const c=line[i];
+          if(c==='"'&&inQ&&line[i+1]==='"'){cur+='"';i++;}
+          else if(c==='"'){inQ=!inQ;}
+          else if(c===sep&&!inQ){cells.push(cur);cur='';}
+          else cur+=c;
+        }
+        cells.push(cur);return cells;
+      };
+      const header=parseRow(lines[0]).map(h=>h.toLowerCase().trim());
+      const iName=header.findIndex(h=>h.includes('name'));
+      const iCountry=header.findIndex(h=>h.includes('land')||h.includes('country'));
+      const iRegion=header.findIndex(h=>h.includes('region'));
+      const iFlag=header.findIndex(h=>h.includes('flag')||h.includes('flagge'));
+      const iCC=header.findIndex(h=>h.includes('code')||h.includes('cc'));
+      const iLat=header.findIndex(h=>h.includes('breit')||h.includes('lat'));
+      const iLng=header.findIndex(h=>h.includes('läng')||h.includes('lng')||h.includes('lon'));
+      const iVisited=header.findIndex(h=>h.includes('besucht')||h.includes('visited'));
+      if(iName<0||iCountry<0){toast('CSV-Format ungültig: Spalten Name + Land erforderlich');return;}
+      
+      const regionMap={};
+      Object.entries(REGIONS).forEach(([k,v])=>{regionMap[v.name.toLowerCase()]=k;});
+      
+      let added=0,skipped=0,marked=0;
+      if(!S.customPorts)S.customPorts=[];
+      const existingNames=new Set([...PORTS,...S.customPorts].map(p=>p.name.toLowerCase()));
+      
+      lines.slice(1).forEach(line=>{
+        if(!line.trim())return;
+        const cells=parseRow(line);
+        const name=(cells[iName]||'').trim();
+        const country=(cells[iCountry]||'').trim();
+        if(!name||!country){skipped++;return;}
+        
+        const isVisited=iVisited>=0&&(cells[iVisited]||'').toLowerCase().includes('ja');
+        
+        // Wenn Hafen bereits existiert (built-in), nur ggf. als besucht markieren
+        const existing=[...PORTS,...S.customPorts].find(p=>p.name.toLowerCase()===name.toLowerCase());
+        if(existing){
+          if(isVisited&&!S.vp.includes(existing.id)){S.vp.push(existing.id);marked++;}
+          skipped++;return;
+        }
+        
+        const regionRaw=(cells[iRegion]||'').toLowerCase().trim();
+        const region=regionMap[regionRaw]||Object.keys(REGIONS).find(k=>k===regionRaw)||'mediterranean';
+        const flag=(cells[iFlag]||'').trim()||COUNTRY_FLAGS[country]||'🏳️';
+        const cc=((cells[iCC]||'').trim()||COUNTRY_CC[country]||'').toUpperCase();
+        const lat=iLat>=0?parseFloat((cells[iLat]||'').replace(',','.'))||null:null;
+        const lng=iLng>=0?parseFloat((cells[iLng]||'').replace(',','.'))||null:null;
+        const id='csv_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'_'+name.toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,10);
+        S.customPorts.push({id,name,country,flag,region,lat,lng,cc,_custom:true});
+        if(isVisited)S.vp.push(id);
+        added++;
+      });
+      save();renderPorts();if(MAP)renderMap();
+      toast(`✅ ${added} neue Häfen importiert${marked?' · '+marked+' als besucht':''}${skipped?' · '+skipped+' übersprungen':''}`);
+    }catch(err){console.error(err);toast('Fehler beim CSV-Import');}
+    e.target.value='';
+  };
+  reader.readAsText(file,'utf-8');
+}
+
 
 function renderShips(){
   document.getElementById('sh-count').textContent=`${S.vs.length} / ${SHIPS.length} gefahren`;
@@ -4865,7 +5136,7 @@ function importData(e){
 }
 function resetAll(){
   if(confirm('Alle Daten wirklich zurücksetzen? Dies kann nicht rückgängig gemacht werden.')){
-    S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''}};
+    S={vp:[],vs:[],voyages:[],activity:[],profile:{name:'',homePort:''},customPorts:[]};
     save();navigate('uebersicht');toast('Daten zurückgesetzt');
   }
 }
