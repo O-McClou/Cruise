@@ -303,9 +303,9 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .maplibregl-popup-tip { display: none !important; }
 
-/* Karten-Canvas: Nacht-Look via CSS-Filter */
+/* Karten-Canvas: leichter Nacht-Look via CSS-Filter */
 #maplibre-map canvas {
-  filter: brightness(0.82) saturate(1.4) contrast(1.08);
+  filter: brightness(0.90) saturate(1.20) contrast(1.05);
 }
 
 /* ── Karten-Legende unten Mitte ───────────────────────────────────── */
@@ -748,48 +748,90 @@ function _styleMapToNightLook() {
   if (!style || !style.layers) return;
 
   style.layers.forEach(layer => {
-    const id = layer.id;
+    const id = layer.id.toLowerCase();
     const type = layer.type;
-
     try {
-      // ── Ozean / Wasser → leuchtendes Kobaltblau ──────────────────────────
+      // ── Hintergrund (Ozean-Basis) ─────────────────────────────────────────
       if (type === 'background') {
-        MAP.setPaintProperty(id, 'background-color', '#020e24');
+        MAP.setPaintProperty(layer.id, 'background-color', '#05244a');
+        return;
       }
+
+      // ── Flächen ───────────────────────────────────────────────────────────
       if (type === 'fill') {
-        if (/water|ocean|sea|lake|river/.test(id)) {
-          MAP.setPaintProperty(id, 'fill-color', '#0d3a6e');
-          MAP.setPaintProperty(id, 'fill-opacity', 1.0);
+        // Wasser / Ozean
+        if (/water|ocean|sea|bay|gulf/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#0d3d6b');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 1.0);
+          return;
         }
-        // Landmasse – warmes dunkles Braun/Grau wie im Foto
-        else if (/land|earth|continent|ground|residential|area|park|wood|forest|grass|sand|building|urban/.test(id)) {
-          MAP.setPaintProperty(id, 'fill-color', '#1a1a2e');
-          MAP.setPaintProperty(id, 'fill-opacity', 0.95);
+        // Eis / Schnee / Gletscher / Arktis / Antarktis → hell, realistisch weißlich-blau
+        if (/ice|snow|glacier|arctic|antarct|greenland|frozen/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#c8ddf0');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.92);
+          return;
+        }
+        // Wald / Vegetation → dunkles Grüngrau
+        if (/forest|wood|park|grass|vegetation|scrub|farmland/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#1c2e1e');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.85);
+          return;
+        }
+        // Sand / Wüste → warmes Dunkelbeige
+        if (/sand|desert|beach/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#2a2416');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.85);
+          return;
+        }
+        // Stadtflächen / Gebäude → sehr dunkel
+        if (/building|urban|residential|commercial|industrial/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#111827');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.8);
+          return;
+        }
+        // Allgemeine Landmasse → dunkles Blaugrau-Braun
+        if (/land|earth|continent|ground|area|polygon/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#1a2535');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.90);
+          return;
         }
       }
+
+      // ── Linien ────────────────────────────────────────────────────────────
       if (type === 'line') {
-        if (/water|ocean|sea|coast|shore/.test(id)) {
-          MAP.setPaintProperty(id, 'line-color', '#1a5fa0');
+        // Küstenlinien
+        if (/coast|shore|waterway/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'line-color', 'rgba(30,90,160,0.6)');
+          MAP.setPaintProperty(layer.id, 'line-width', 0.8);
+          return;
         }
-        // Landesgrenzen
-        else if (/boundary|border|country/.test(id)) {
-          MAP.setPaintProperty(id, 'line-color', 'rgba(100,120,160,0.4)');
-          MAP.setPaintProperty(id, 'line-width', 0.5);
+        // Landesgrenzen → sehr dezent dunkelgrau (kaum sichtbar)
+        if (/boundary|border|country|admin/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'line-color', 'rgba(40,55,80,0.55)');
+          MAP.setPaintProperty(layer.id, 'line-width', 0.6);
+          MAP.setPaintProperty(layer.id, 'line-dasharray', [3, 2]);
+          return;
         }
-        // Straßen ausblenden
-        else if (/road|street|highway|motorway|rail/.test(id)) {
-          MAP.setPaintProperty(id, 'line-opacity', 0);
+        // Straßen / Schienen → komplett ausblenden
+        if (/road|street|highway|motorway|rail|tunnel|bridge/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'line-opacity', 0);
+          return;
         }
       }
-      // Labels – gedämpft, leicht bläulich-weiß
+
+      // ── Symbole / Labels ─────────────────────────────────────────────────
       if (type === 'symbol') {
-        if (/label|name|place|city|town|country|ocean|sea|continent/.test(id)) {
-          MAP.setPaintProperty(id, 'text-color', 'rgba(180,200,230,0.85)');
-          MAP.setPaintProperty(id, 'text-halo-color', 'rgba(2,14,36,0.9)');
-          MAP.setPaintProperty(id, 'text-halo-width', 1.5);
+        // Straßen-Labels ausblenden
+        if (/road|street|highway/.test(id)) {
+          MAP.setLayoutProperty(layer.id, 'visibility', 'none');
+          return;
         }
+        // Alle anderen Labels: sanftes Blau-Weiß
+        MAP.setPaintProperty(layer.id, 'text-color', 'rgba(160,185,220,0.80)');
+        MAP.setPaintProperty(layer.id, 'text-halo-color', 'rgba(3,18,45,0.92)');
+        MAP.setPaintProperty(layer.id, 'text-halo-width', 1.2);
       }
-    } catch(e) { /* Layer unterstützt Property nicht – ignorieren */ }
+    } catch(e) { /* Layer unterstützt Property nicht */ }
   });
 }
 
@@ -851,18 +893,18 @@ function initCountryLayer() {
 
       MAP.addSource('countries', { type: 'geojson', data });
 
-      // Basis-Füllung – transparent
+      // Alle Ländergrenzen – dezente dunkle Linie (immer sichtbar)
       MAP.addLayer({
-        id: 'countries-fill',
-        type: 'fill',
+        id: 'countries-line',
+        type: 'line',
         source: 'countries',
         paint: {
-          'fill-color': '#0a1628',
-          'fill-opacity': 0.0
+          'line-color': 'rgba(20,35,60,0.70)',
+          'line-width': 0.7
         }
       });
 
-      // Besuchte Länder – leuchtender blauer Schimmer wie im Foto
+      // Besuchte Länder – subtiler blauer Schimmer
       MAP.addLayer({
         id: 'countries-visited',
         type: 'fill',
@@ -870,26 +912,24 @@ function initCountryLayer() {
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
           'fill-color': '#1a4aaa',
-          'fill-opacity': 0.48,
-          'fill-antialias': true
+          'fill-opacity': 0.30
         }
       });
 
-      // Goldene Outline für besuchte Länder – leuchtend wie im Foto
+      // Besuchte Länder – dezente goldene Grenzlinie (nicht dominant)
       MAP.addLayer({
         id: 'countries-visited-line',
         type: 'line',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'line-color': '#f0c040',
-          'line-width': 2.2,
-          'line-opacity': 1.0,
-          'line-blur': 0.8
+          'line-color': '#c9a84c',
+          'line-width': 1.2,
+          'line-opacity': 0.65
         }
       });
 
-      // Zweite goldene Linie – äußerer Schimmer
+      // Besuchte Länder – ganz weicher Glow (nur Hauch)
       MAP.addLayer({
         id: 'countries-visited-glow',
         type: 'line',
@@ -897,20 +937,9 @@ function initCountryLayer() {
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
           'line-color': '#c9a84c',
-          'line-width': 5.0,
-          'line-opacity': 0.25,
-          'line-blur': 3.0
-        }
-      });
-
-      // Ländergrenzen allgemein – sehr dezent auf dunkler Karte
-      MAP.addLayer({
-        id: 'countries-line',
-        type: 'line',
-        source: 'countries',
-        paint: {
-          'line-color': 'rgba(100,130,170,0.20)',
-          'line-width': 0.5
+          'line-width': 3.5,
+          'line-opacity': 0.12,
+          'line-blur': 2.5
         }
       });
 
@@ -935,19 +964,19 @@ function updateCountryHighlight() {
 
   const HIDE = ['==', ['literal', false], true];
 
-  if (highlight && visitedCodes.length > 0) {
-    // Basis-Filter: ISO3166-1-Alpha-2 Match
-    const filter = ['any', ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, true, false]];
+  // Allgemeine Ländergrenzen immer sichtbar (dezente dunkle Linie)
+  if (MAP.getLayer('countries-line')) {
+    MAP.setFilter('countries-line', null);
+  }
 
-    // Workaround für Natural-Earth-Lücken ("-99" Problem bei Überseegebieten)
+  if (highlight && visitedCodes.length > 0) {
+    const filter = ['any', ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, true, false]];
     const specialNames = [];
     if (visitedCodes.includes('FR')) specialNames.push('France');
     if (visitedCodes.includes('NO')) specialNames.push('Norway');
     if (specialNames.length > 0) {
       filter.push(['match', ['get', 'name'], specialNames, true, false]);
     }
-
-    // Alle drei Visited-Layer (Füllung + goldene Outline + Glow) aktualisieren
     MAP.setFilter('countries-visited', filter);
     if (MAP.getLayer('countries-visited-line')) MAP.setFilter('countries-visited-line', filter);
     if (MAP.getLayer('countries-visited-glow')) MAP.setFilter('countries-visited-glow', filter);
