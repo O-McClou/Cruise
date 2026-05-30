@@ -744,10 +744,87 @@ function initMap() {
   if (MAP) return;
   if (!document.getElementById('maplibre-map')) return;
 
-  // ── Dark Vector Map via OpenFreeMap (kostenlos, kein API-Key) ────────────
+  // ── Nacht-Satelliten-Karte (NASA Earth at Night Optik) ──────────────────
+  // Inline-Style: dunkler Ozean + ESRI-Raster-Tiles als Basis
   MAP = new maplibregl.Map({
     container: 'maplibre-map',
-    style: 'https://tiles.openfreemap.org/styles/dark',
+    style: {
+      version: 8,
+      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+      sources: {
+        'carto-dark': {
+          type: 'raster',
+          tiles: [
+            'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
+            'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
+            'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png'
+          ],
+          tileSize: 256,
+          attribution: '© CartoDB © OpenStreetMap contributors'
+        },
+        'esri-sat': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+          ],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: '© Esri, Maxar, Earthstar Geographics'
+        },
+        'esri-labels': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+          ],
+          tileSize: 256,
+          maxzoom: 19
+        }
+      },
+      layers: [
+        // Dunkler Hintergrund
+        { id: 'bg', type: 'background', paint: { 'background-color': '#00050f' } },
+        // Satellitenbild (stark abgedunkelt → wirkt wie Nachtaufnahme)
+        {
+          id: 'sat',
+          type: 'raster',
+          source: 'esri-sat',
+          paint: {
+            'raster-opacity': 0.72,
+            'raster-brightness-min': 0.0,
+            'raster-brightness-max': 0.55,
+            'raster-saturation': -0.35,
+            'raster-contrast': 0.15,
+            'raster-hue-rotate': 195
+          }
+        },
+        // Dunkles Overlay für tiefen Ozean
+        {
+          id: 'dark-overlay',
+          type: 'raster',
+          source: 'carto-dark',
+          paint: {
+            'raster-opacity': 0.52,
+            'raster-brightness-min': 0,
+            'raster-brightness-max': 0.30,
+            'raster-saturation': 0.6,
+            'raster-hue-rotate': 195
+          }
+        },
+        // Beschriftungen (Ländernamen, Ozeane)
+        {
+          id: 'labels',
+          type: 'raster',
+          source: 'esri-labels',
+          paint: {
+            'raster-opacity': 0.65,
+            'raster-brightness-min': 0,
+            'raster-brightness-max': 0.5,
+            'raster-saturation': -0.5,
+            'raster-hue-rotate': 195
+          }
+        }
+      ]
+    },
     center: [10, 20],
     zoom: 1.8,
     minZoom: 0.5,
@@ -775,33 +852,10 @@ function initMap() {
     drawMarkers();
   });
 
-  // Bei Style-Neuladen (z.B. nach Offline-Fallback) Layer neu aufbauen
+  // Bei Style-Neuladen Layer neu aufbauen
   MAP.on('styledata', () => {
     if (!MAP.loaded()) return;
-    // Prüfen ob Layer noch vorhanden, ggf. neu zeichnen
-    if (!MAP.getLayer('ports-circle') && MAP.getSource('ports')) {
-      drawMarkers();
-    }
-  });
-
-  // Fallback: falls openfreemap.org nicht erreichbar (z.B. offline ohne Cache),
-  // auf einen minimalen Inline-Style zurückfallen
-  MAP.on('error', (e) => {
-    if (e.error && !MAP._darkFallbackDone) {
-      MAP._darkFallbackDone = true;
-      console.warn('[CruiseLog] Dark map style nicht ladbar – Fallback aktiv');
-      MAP.setStyle({
-        version: 8,
-        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-        sources: {},
-        layers: [{
-          id: 'bg',
-          type: 'background',
-          paint: { 'background-color': '#001428' }
-        }]
-      });
-      setTimeout(() => { initCountryLayer(); renderMap(); }, 300);
-    }
+    if (!MAP.getSource('countries') && GEO_LOADED) initCountryLayer();
   });
 }
 
@@ -809,14 +863,14 @@ function initCountryLayer() {
   fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
     .then(r => r.json())
     .then(data => {
-      // Log the first feature's properties to diagnose property names at runtime
+      GEO_LOADED = true;
       if (data.features && data.features.length > 0) {
         console.log('[CruiseLog] GeoJSON props:', Object.keys(data.features[0].properties));
       }
 
       MAP.addSource('countries', { type: 'geojson', data });
 
-      // Basis-Füllung – auf dunkler Vektorkarte unsichtbar lassen
+      // Basis-Füllung – transparent
       MAP.addLayer({
         id: 'countries-fill',
         type: 'fill',
@@ -827,28 +881,29 @@ function initCountryLayer() {
         }
       });
 
-      // Besuchte Länder – subtile blaue Füllung
+      // Besuchte Länder – kräftiger blauer Schimmer wie im Foto
       MAP.addLayer({
         id: 'countries-visited',
         type: 'fill',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'fill-color': '#1a4a8a',
-          'fill-opacity': 0.38
+          'fill-color': '#1a4a9a',
+          'fill-opacity': 0.55
         }
       });
 
-      // Goldene Outline für besuchte Länder
+      // Goldene Outline für besuchte Länder – leuchtend wie im Foto
       MAP.addLayer({
         id: 'countries-visited-line',
         type: 'line',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'line-color': '#c9a84c',
-          'line-width': 1.6,
-          'line-opacity': 0.80
+          'line-color': '#d4a843',
+          'line-width': 2.0,
+          'line-opacity': 0.95,
+          'line-blur': 0.5
         }
       });
 
