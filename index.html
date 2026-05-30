@@ -690,7 +690,10 @@ function updateCountryHighlight() {
 
 function renderMap() {
   if (!MAP) return;
-  if (!MAP.loaded()) return;
+  if (!MAP.loaded()) {
+    MAP.once("idle", () => renderMap());
+    return;
+  }
   updateCountryHighlight();
   drawMarkers();
 }
@@ -707,10 +710,17 @@ function drawMarkers() {
 
   const geojson = { type: 'FeatureCollection', features };
 
-  // Wenn Source bereits existiert, nur Daten aktualisieren
+  // Source existiert bereits → Daten aktualisieren (Layer bleiben erhalten)
+  // Prüfen ob Layer auch wirklich vorhanden sind (nach Style-Reset können sie fehlen)
   if (MAP.getSource('ports')) {
-    MAP.getSource('ports').setData(geojson);
-    return;
+    if (MAP.getLayer('ports-circle')) {
+      MAP.getSource('ports').setData(geojson);
+      return;
+    }
+    // Source da, aber Layer fehlen (nach Fallback-Style-Reset) → Source entfernen und neu aufbauen
+    ['ports-circle','ports-glow-mid','ports-glow-outer','cluster-count','clusters','clusters-glow']
+      .forEach(id => { if (MAP.getLayer(id)) MAP.removeLayer(id); });
+    MAP.removeSource('ports');
   }
 
   // ── Source mit Clustering ─────────────────────────────────────────────────
