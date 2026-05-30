@@ -272,6 +272,77 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .maplibregl-popup-tip { display: none !important; }
 
+/* ── Karten-Legende unten Mitte ───────────────────────────────────── */
+.map-legend {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(0,9,26,0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(201,168,76,0.22);
+  border-radius: 20px;
+  padding: 7px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(201,168,76,0.85);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  white-space: nowrap;
+  gap: 10px;
+}
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(201,168,76,0.85);
+  font-size: 11px;
+  font-weight: 700;
+}
+.map-legend-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(201,168,76,0.22);
+  flex-shrink: 0;
+}
+.map-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.map-legend-dot--visited {
+  background: #c9a84c;
+  box-shadow: 0 0 6px rgba(201,168,76,0.7);
+  border: 1.5px solid rgba(255,255,255,0.8);
+}
+.map-legend-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: #c9a84c;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 800;
+  color: #1a0800;
+  flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(201,168,76,0.4);
+}
+.map-legend-country {
+  width: 14px;
+  height: 10px;
+  border: 1.5px solid #c9a84c;
+  background: rgba(26,74,138,0.55);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
     .ship-retired { opacity: 0.72; }
     .ship-retired .ic-icon { filter: grayscale(60%); }
     .ret-tag { font-size: 10px; font-weight: 700; background: var(--sub); color: #fff; border-radius: 4px; padding: 1px 5px; margin-left: 5px; opacity: 0.8; vertical-align: middle; }
@@ -314,6 +385,24 @@ textarea.fi{resize:vertical;min-height:72px}
         <div class="map-stat"><span class="map-stat-n" id="s-ships">0</span><span class="map-stat-l">Schiffe</span></div>
         <div class="map-stat-div"></div>
         <div class="map-stat"><span class="map-stat-n" id="s-regions">0</span><span class="map-stat-l">Regionen</span></div>
+      </div>
+
+      <!-- Legende unten Mitte -->
+      <div class="map-legend">
+        <span class="map-legend-item">
+          <span class="map-legend-dot map-legend-dot--visited"></span>
+          Besuchte Häfen
+        </span>
+        <span class="map-legend-sep"></span>
+        <span class="map-legend-item">
+          <span class="map-legend-badge">12</span>
+          Cluster
+        </span>
+        <span class="map-legend-sep"></span>
+        <span class="map-legend-item">
+          <span class="map-legend-country"></span>
+          Besuchte Länder
+        </span>
       </div>
 
       <!-- Länder-Toggle unten links -->
@@ -660,6 +749,15 @@ function initMap() {
     drawMarkers();
   });
 
+  // Bei Style-Neuladen (z.B. nach Offline-Fallback) Layer neu aufbauen
+  MAP.on('styledata', () => {
+    if (!MAP.loaded()) return;
+    // Prüfen ob Layer noch vorhanden, ggf. neu zeichnen
+    if (!MAP.getLayer('ports-circle') && MAP.getSource('ports')) {
+      drawMarkers();
+    }
+  });
+
   // Fallback: falls openfreemap.org nicht erreichbar (z.B. offline ohne Cache),
   // auf einen minimalen Inline-Style zurückfallen
   MAP.on('error', (e) => {
@@ -789,12 +887,49 @@ function updateCountryHighlight() {
 function renderMap() {
   if (!MAP) return;
   if (!MAP.loaded()) {
-    // Karte noch nicht bereit → beim nächsten idle-Event erneut versuchen
     MAP.once('idle', () => renderMap());
     return;
   }
+  // Sicherstellen dass das Anker-Image nach Style-Reloads neu generiert wird
+  try { ensureAnchorImage(); } catch(e) {}
   updateCountryHighlight();
   drawMarkers();
+}
+
+// ── SVG-Anker-Icon für Häfen ─────────────────────────────────────────────────
+function ensureAnchorImage() {
+  if (MAP.hasImage('port-anchor')) return;
+  const size = 36;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  // Äußerer Glow-Halo
+  const glow = ctx.createRadialGradient(size/2,size/2,2, size/2,size/2,size/2);
+  glow.addColorStop(0,'rgba(201,168,76,0.55)');
+  glow.addColorStop(0.45,'rgba(201,168,76,0.18)');
+  glow.addColorStop(1,'rgba(201,168,76,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(size/2,size/2,size/2,0,Math.PI*2); ctx.fill();
+  // Anker-Icon zeichnen
+  const cx=size/2, cy=size/2+1;
+  ctx.strokeStyle='rgba(255,255,255,0.95)';
+  ctx.fillStyle='rgba(255,255,255,0.95)';
+  ctx.lineWidth=1.6; ctx.lineCap='round'; ctx.lineJoin='round';
+  // Kreis oben
+  ctx.beginPath(); ctx.arc(cx,cy-7,2.5,0,Math.PI*2); ctx.stroke();
+  // Schaft
+  ctx.beginPath(); ctx.moveTo(cx,cy-4.5); ctx.lineTo(cx,cy+7); ctx.stroke();
+  // Querbalken
+  ctx.beginPath(); ctx.moveTo(cx-5,cy-1.5); ctx.lineTo(cx+5,cy-1.5); ctx.stroke();
+  // Linker Bogen
+  ctx.beginPath(); ctx.moveTo(cx,cy+7); ctx.bezierCurveTo(cx-3,cy+7,cx-7.5,cy+4,cx-7.5,cy+1); ctx.stroke();
+  // Rechter Bogen
+  ctx.beginPath(); ctx.moveTo(cx,cy+7); ctx.bezierCurveTo(cx+3,cy+7,cx+7.5,cy+4,cx+7.5,cy+1); ctx.stroke();
+  // Endpunkte
+  ctx.beginPath(); ctx.arc(cx-7.5,cy+1,1.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+7.5,cy+1,1.5,0,Math.PI*2); ctx.fill();
+  const imgData = ctx.getImageData(0,0,size,size);
+  MAP.addImage('port-anchor', { width:size, height:size, data: imgData.data });
 }
 
 function drawMarkers() {
@@ -809,14 +944,17 @@ function drawMarkers() {
 
   const geojson = { type: 'FeatureCollection', features };
 
+  // Anker-Image sicherstellen
+  ensureAnchorImage();
+
   // Source existiert → nur Daten aktualisieren, ABER nur wenn Layer auch da sind
   if (MAP.getSource('ports')) {
-    if (MAP.getLayer('ports-circle')) {
+    if (MAP.getLayer('ports-icon')) {
       MAP.getSource('ports').setData(geojson);
       return;
     }
     // Source da, Layer fehlen (nach Style-Reset) → alles sauber abreißen
-    ['ports-circle','ports-glow-mid','ports-glow-outer',
+    ['ports-icon','ports-circle','ports-glow-mid','ports-glow-outer',
      'cluster-count','clusters','clusters-glow'].forEach(id => {
       if (MAP.getLayer(id)) MAP.removeLayer(id);
     });
@@ -824,13 +962,12 @@ function drawMarkers() {
   }
 
   // ── Source mit Clustering ─────────────────────────────────────────────────
-  // clusterRadius klein halten → mehr, aber sichtbarere Cluster bei Weltansicht
   MAP.addSource('ports', {
     type: 'geojson',
     data: geojson,
     cluster: true,
     clusterMaxZoom: 11,
-    clusterRadius: 40,
+    clusterRadius: 45,
     clusterMinPoints: 2
   });
 
@@ -842,17 +979,9 @@ function drawMarkers() {
     filter: ['has', 'point_count'],
     paint: {
       'circle-color': '#c9a84c',
-      // Zoom-abhängig: bei Weltansicht groß genug um sichtbar zu sein
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 22,
-        3, 26,
-        6, 30,
-        9, 36,
-        12, 44
-      ],
-      'circle-blur': 0.9,
-      'circle-opacity': 0.22
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,26, 3,30, 6,36, 9,42, 12,50],
+      'circle-blur': 0.85,
+      'circle-opacity': 0.25
     }
   });
 
@@ -863,19 +992,11 @@ function drawMarkers() {
     source: 'ports',
     filter: ['has', 'point_count'],
     paint: {
-      'circle-color': '#c9a84c',
-      // Zoom-abhängig: konstant gut sichtbar in jeder Stufe
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 14,
-        3, 16,
-        6, 19,
-        9, 24,
-        12, 30
-      ],
-      'circle-stroke-color': 'rgba(201,168,76,0.40)',
-      'circle-stroke-width': 5,
-      'circle-opacity': 0.95
+      'circle-color': ['interpolate',['linear'],['get','point_count'], 1,'#c9a84c', 10,'#e8b84b', 50,'#f5c842'],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,15, 3,18, 6,21, 9,26, 12,32],
+      'circle-stroke-color': 'rgba(255,255,255,0.30)',
+      'circle-stroke-width': 2.5,
+      'circle-opacity': 0.96
     }
   });
 
@@ -888,66 +1009,84 @@ function drawMarkers() {
     layout: {
       'text-field': ['get', 'point_count_abbreviated'],
       'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 0, 10, 6, 12, 12, 14],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 0, 11, 6, 13, 12, 15],
       'text-allow-overlap': true
     },
     paint: {
-      'text-color': '#1a0e00',
-      'text-halo-color': 'rgba(255,255,255,0.2)',
-      'text-halo-width': 0.5
+      'text-color': '#1a0800',
+      'text-halo-color': 'rgba(255,255,255,0.15)',
+      'text-halo-width': 0.3
     }
   });
 
-  // ── Einzelne Punkte: Glow outer ───────────────────────────────────────────
+  // ── Einzelne Punkte: Äußerer Glow ─────────────────────────────────────────
   MAP.addLayer({
     id: 'ports-glow-outer',
     type: 'circle',
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 14, 5, 16, 8, 20, 12, 26
-      ],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,16, 5,18, 8,22, 12,28],
       'circle-color': '#c9a84c',
-      'circle-blur': 1.2,
-      'circle-opacity': 0.30
+      'circle-blur': 1.0,
+      'circle-opacity': 0.32
     }
   });
 
-  // ── Einzelne Punkte: Glow mid ─────────────────────────────────────────────
+  // ── Einzelne Punkte: Mittlerer Glow ──────────────────────────────────────
   MAP.addLayer({
     id: 'ports-glow-mid',
     type: 'circle',
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 8, 5, 10, 8, 13, 12, 17
-      ],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,9, 5,11, 8,14, 12,18],
       'circle-color': '#f5e8c0',
-      'circle-blur': 0.5,
-      'circle-opacity': 0.45
+      'circle-blur': 0.4,
+      'circle-opacity': 0.50
     }
   });
 
-  // ── Einzelne Punkte: Kern ─────────────────────────────────────────────────
+  // ── Einzelne Punkte: Kern-Kreis ───────────────────────────────────────────
   MAP.addLayer({
     id: 'ports-circle',
     type: 'circle',
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-radius': [
-        'interpolate', ['linear'], ['zoom'],
-        0, 5, 4, 6, 8, 7, 12, 9
-      ],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,5, 4,6, 7,7, 10,8],
       'circle-color': '#c9a84c',
-      'circle-stroke-color': 'rgba(255,255,255,0.92)',
+      'circle-stroke-color': 'rgba(255,255,255,0.95)',
       'circle-stroke-width': 1.5,
       'circle-opacity': 1.0,
       'circle-blur': 0
+    }
+  });
+
+  // ── Einzelne Punkte: Anker-Symbol (bei Zoom ≥ 5) ─────────────────────────
+  MAP.addLayer({
+    id: 'ports-icon',
+    type: 'symbol',
+    source: 'ports',
+    filter: ['!', ['has', 'point_count']],
+    minzoom: 5,
+    layout: {
+      'icon-image': 'port-anchor',
+      'icon-size': ['interpolate',['linear'],['zoom'], 5,0.7, 8,0.85, 12,1.0],
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'text-field': ['step',['zoom'], '', 8, ['get','name']],
+      'text-font': ['Open Sans SemiBold','Arial Unicode MS Regular'],
+      'text-size': 11,
+      'text-offset': [0, 1.6],
+      'text-anchor': 'top',
+      'text-allow-overlap': false,
+      'text-optional': true
+    },
+    paint: {
+      'text-color': '#f5e8c0',
+      'text-halo-color': 'rgba(0,10,28,0.85)',
+      'text-halo-width': 1.5
     }
   });
 
@@ -957,31 +1096,28 @@ function drawMarkers() {
     const clusterId = feature.properties.cluster_id;
     MAP.getSource('ports').getClusterExpansionZoom(clusterId, (err, zoom) => {
       if (err) return;
-      MAP.easeTo({
-        center: feature.geometry.coordinates,
-        zoom: Math.min(zoom + 0.5, 14),
-        duration: 400
-      });
+      MAP.easeTo({ center: feature.geometry.coordinates, zoom: Math.min(zoom + 0.5, 14), duration: 420 });
     });
   });
 
   // ── Einzelhafen anklicken → Popup ─────────────────────────────────────────
-  MAP.on('click', 'ports-circle', e => {
-    const p = e.features[0].properties;
-    new maplibregl.Popup({ closeButton: false, offset: 12, maxWidth: '200px' })
-      .setLngLat(e.features[0].geometry.coordinates)
-      .setHTML(`
-        <div style="font-family:'Nunito',sans-serif;font-size:12px;
-                    line-height:1.6;color:#fff">
-          <b style="font-size:13px;color:#f5e8c0">${p.flag} ${p.name}</b><br>
-          <span style="color:rgba(201,168,76,0.75);font-size:11px">${p.country}</span>
-        </div>
-      `)
-      .addTo(MAP);
+  ['ports-circle','ports-icon'].forEach(layer => {
+    MAP.on('click', layer, e => {
+      const p = e.features[0].properties;
+      new maplibregl.Popup({ closeButton: false, offset: 14, maxWidth: '220px' })
+        .setLngLat(e.features[0].geometry.coordinates)
+        .setHTML(`
+          <div style="font-family:'Nunito',sans-serif;font-size:12px;line-height:1.6;color:#fff">
+            <b style="font-size:13.5px;color:#f5e8c0">${p.flag} ${p.name}</b><br>
+            <span style="color:rgba(201,168,76,0.75);font-size:11px">⚓ ${p.country}</span>
+          </div>
+        `)
+        .addTo(MAP);
+    });
   });
 
   // ── Cursor bei Cluster und Einzelpunkt ───────────────────────────────────
-  ['clusters', 'ports-circle'].forEach(layer => {
+  ['clusters','ports-circle','ports-icon'].forEach(layer => {
     MAP.on('mouseenter', layer, () => { MAP.getCanvas().style.cursor = 'pointer'; });
     MAP.on('mouseleave', layer, () => { MAP.getCanvas().style.cursor = ''; });
   });
@@ -5171,7 +5307,20 @@ function navigate(tab){
   const ni=document.getElementById('n-'+tab);if(ni)ni.classList.add('active');
   document.querySelector('.main').scrollTop=0;
   ({uebersicht:renderDashboard,haefen:renderPorts,schiffe:renderShips,reisen:renderVoyages,abzeichen:renderBadges,profil:renderProfile})[tab]?.();
-  if(tab==='uebersicht'){setTimeout(()=>{initMap();if(MAP)MAP.resize();},150);}
+  if(tab==='uebersicht'){
+    setTimeout(()=>{
+      initMap();
+      if(MAP){
+        MAP.resize();
+        // Re-render markers and country highlights after returning to map tab
+        if(MAP.loaded()){
+          renderMap();
+        } else {
+          MAP.once('idle',()=>renderMap());
+        }
+      }
+    },150);
+  }
 }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
 function badgePop(b){const p=document.getElementById('bdge-pop');p.textContent=`🏅 Abzeichen: ${b.name}!`;p.classList.add('show');setTimeout(()=>p.classList.remove('show'),2800);}
