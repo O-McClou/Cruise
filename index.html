@@ -939,7 +939,7 @@ function fitToVisitedPorts() {
   );
 }
 
-
+function renderMap() {
   if (!MAP) return;
   if (!MAP.loaded()) {
     MAP.once('idle', () => renderMap());
