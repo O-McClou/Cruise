@@ -303,6 +303,11 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .maplibregl-popup-tip { display: none !important; }
 
+/* Karten-Canvas: Nacht-Look via CSS-Filter */
+#maplibre-map canvas {
+  filter: brightness(0.82) saturate(1.4) contrast(1.08);
+}
+
 /* ── Karten-Legende unten Mitte ───────────────────────────────────── */
 .map-legend {
   position: absolute;
@@ -736,6 +741,58 @@ textarea.fi{resize:vertical;min-height:72px}
 <script>
 
 
+// ── Karte nach dem Laden auf Night-Look stylen ────────────────────────────
+function _styleMapToNightLook() {
+  if (!MAP) return;
+  const style = MAP.getStyle();
+  if (!style || !style.layers) return;
+
+  style.layers.forEach(layer => {
+    const id = layer.id;
+    const type = layer.type;
+
+    try {
+      // ── Ozean / Wasser → leuchtendes Kobaltblau ──────────────────────────
+      if (type === 'background') {
+        MAP.setPaintProperty(id, 'background-color', '#020e24');
+      }
+      if (type === 'fill') {
+        if (/water|ocean|sea|lake|river/.test(id)) {
+          MAP.setPaintProperty(id, 'fill-color', '#0d3a6e');
+          MAP.setPaintProperty(id, 'fill-opacity', 1.0);
+        }
+        // Landmasse – warmes dunkles Braun/Grau wie im Foto
+        else if (/land|earth|continent|ground|residential|area|park|wood|forest|grass|sand|building|urban/.test(id)) {
+          MAP.setPaintProperty(id, 'fill-color', '#1a1a2e');
+          MAP.setPaintProperty(id, 'fill-opacity', 0.95);
+        }
+      }
+      if (type === 'line') {
+        if (/water|ocean|sea|coast|shore/.test(id)) {
+          MAP.setPaintProperty(id, 'line-color', '#1a5fa0');
+        }
+        // Landesgrenzen
+        else if (/boundary|border|country/.test(id)) {
+          MAP.setPaintProperty(id, 'line-color', 'rgba(100,120,160,0.4)');
+          MAP.setPaintProperty(id, 'line-width', 0.5);
+        }
+        // Straßen ausblenden
+        else if (/road|street|highway|motorway|rail/.test(id)) {
+          MAP.setPaintProperty(id, 'line-opacity', 0);
+        }
+      }
+      // Labels – gedämpft, leicht bläulich-weiß
+      if (type === 'symbol') {
+        if (/label|name|place|city|town|country|ocean|sea|continent/.test(id)) {
+          MAP.setPaintProperty(id, 'text-color', 'rgba(180,200,230,0.85)');
+          MAP.setPaintProperty(id, 'text-halo-color', 'rgba(2,14,36,0.9)');
+          MAP.setPaintProperty(id, 'text-halo-width', 1.5);
+        }
+      }
+    } catch(e) { /* Layer unterstützt Property nicht – ignorieren */ }
+  });
+}
+
 // ── MapLibre-Kartenlogik ───────────────────────────────────────────────────
 let MAP = null;
 let GEO_LOADED = false;
@@ -744,108 +801,10 @@ function initMap() {
   if (MAP) return;
   if (!document.getElementById('maplibre-map')) return;
 
-  // ── NASA Blue Marble / Night Earth Optik ────────────────────────────────
+  // ── Karte: OpenFreeMap Dark als zuverlässige Basis ───────────────────────
   MAP = new maplibregl.Map({
     container: 'maplibre-map',
-    style: {
-      version: 8,
-      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-      sources: {
-        // ESRI Ocean – tiefes leuchtendes Blau für den Ozean
-        'esri-ocean': {
-          type: 'raster',
-          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256,
-          maxzoom: 10,
-          attribution: '© Esri, GEBCO, NOAA'
-        },
-        // ESRI Shaded Relief – realistische Kontinente mit Topografie
-        'esri-relief': {
-          type: 'raster',
-          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256,
-          maxzoom: 13,
-          attribution: '© Esri'
-        },
-        // ESRI Natural Earth (Landmasse mit natürlichen Farben)
-        'esri-natgeo': {
-          type: 'raster',
-          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256,
-          maxzoom: 12,
-          attribution: '© Esri, National Geographic'
-        },
-        // ESRI Referenz-Labels (Ländernamen, Ozean-Bezeichnungen)
-        'esri-labels': {
-          type: 'raster',
-          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Reference_Overlay/MapServer/tile/{z}/{y}/{x}'],
-          tileSize: 256,
-          maxzoom: 13,
-          attribution: '© Esri'
-        }
-      },
-      layers: [
-        // 1. Hintergrund: tiefes Nachtblau
-        {
-          id: 'bg',
-          type: 'background',
-          paint: { 'background-color': '#020e24' }
-        },
-        // 2. Ozean-Layer: leuchtendes Kobaltblau, leicht aufgehellt
-        {
-          id: 'ocean',
-          type: 'raster',
-          source: 'esri-ocean',
-          paint: {
-            'raster-opacity': 1.0,
-            'raster-brightness-min': 0.05,
-            'raster-brightness-max': 0.80,
-            'raster-saturation': 1.2,
-            'raster-contrast': 0.20,
-            'raster-hue-rotate': 200
-          }
-        },
-        // 3. Natural Earth Landmasse – realistisch, leicht abgedunkelt
-        {
-          id: 'natgeo',
-          type: 'raster',
-          source: 'esri-natgeo',
-          paint: {
-            'raster-opacity': 0.88,
-            'raster-brightness-min': 0.0,
-            'raster-brightness-max': 0.70,
-            'raster-saturation': 0.25,
-            'raster-contrast': 0.10
-          }
-        },
-        // 4. Topografie-Overlay für Tiefe und Relief auf Kontinenten
-        {
-          id: 'relief',
-          type: 'raster',
-          source: 'esri-relief',
-          paint: {
-            'raster-opacity': 0.22,
-            'raster-brightness-min': 0,
-            'raster-brightness-max': 0.6,
-            'raster-saturation': -0.8,
-            'raster-contrast': 0.3
-          }
-        },
-        // 5. Beschriftungen: Ländernamen, Ozeane, Inseln
-        {
-          id: 'labels',
-          type: 'raster',
-          source: 'esri-labels',
-          paint: {
-            'raster-opacity': 0.80,
-            'raster-brightness-min': 0.0,
-            'raster-brightness-max': 0.85,
-            'raster-saturation': -0.6,
-            'raster-contrast': 0.1
-          }
-        }
-      ]
-    },
+    style: 'https://tiles.openfreemap.org/styles/liberty',
     center: [10, 20],
     zoom: 1.8,
     minZoom: 0.5,
@@ -868,8 +827,9 @@ function initMap() {
   );
 
   MAP.on('load', () => {
-    initCountryLayer();   // startet async fetch für Länderdaten
-    // Häfen sofort zeichnen – kein Warten auf Länderdaten nötig
+    // ── Vektorkarte auf Foto-Look trimmen ──────────────────────────────────
+    _styleMapToNightLook();
+    initCountryLayer();
     drawMarkers();
   });
 
