@@ -13,8 +13,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" id="ati" href="icon-192.png">
   <link rel="icon" href="icon-192.png">
-  <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet">
-  <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <style>
@@ -139,6 +139,41 @@ textarea.fi{resize:vertical;min-height:72px}
 
 .map-tt{font-family:'Nunito',sans-serif;font-size:11px;font-weight:700;
   background:#1a2640;color:#fff;border:none;border-radius:6px;padding:4px 8px;}
+
+/* ── Dark Map: MapLibre Zoom-Controls stylen ─────────────────────── */
+.maplibregl-ctrl-group {
+  background: rgba(0,16,40,0.85) !important;
+  border: 1px solid rgba(201,168,76,0.30) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5) !important;
+  backdrop-filter: blur(6px);
+}
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+  color: #c9a84c !important;
+  border-bottom: 1px solid rgba(201,168,76,0.15) !important;
+}
+.maplibregl-ctrl-group button:last-child { border-bottom: none !important; }
+.maplibregl-ctrl-group button:hover { background: rgba(201,168,76,0.12) !important; }
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(75%) sepia(60%) saturate(400%) hue-rotate(5deg); }
+/* Attribution klein und dunkel */
+.maplibregl-ctrl-attrib {
+  background: rgba(0,10,25,0.7) !important;
+  color: rgba(255,255,255,0.4) !important;
+  font-size: 9px !important;
+  border-radius: 4px !important;
+}
+.maplibregl-ctrl-attrib a { color: rgba(201,168,76,0.6) !important; }
+/* Popup dark */
+.maplibregl-popup-content {
+  background: rgba(10,22,48,0.95) !important;
+  border: 1px solid rgba(201,168,76,0.30) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6) !important;
+  padding: 8px 12px !important;
+  backdrop-filter: blur(8px);
+}
+.maplibregl-popup-tip { display: none !important; }
 
     .ship-retired { opacity: 0.72; }
     .ship-retired .ic-icon { filter: grayscale(60%); }
@@ -496,43 +531,56 @@ let GEO_LOADED = false;
 function initMap() {
   if (MAP) return;
 
+  // ── Dark Vector Map via OpenFreeMap (kostenlos, kein API-Key) ────────────
+  // Vektorkarte: gestochen scharf bei jedem Zoom, edles Dunkelblau/Marineblau
   MAP = new maplibregl.Map({
     container: 'maplibre-map',
-    style: {
-      version: 8,
-      sources: {
-        'osm': {
-          type: 'raster',
-          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenStreetMap-Mitwirkende'
-        },
-        'openseamap': {
-          type: 'raster',
-          tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'],
-          tileSize: 256,
-          attribution: '© OpenSeaMap'
-        }
-      },
-      layers: [
-        { id: 'osm-layer', type: 'raster', source: 'osm' },
-        { id: 'openseamap-layer', type: 'raster', source: 'openseamap',
-          paint: { 'raster-opacity': 0.85 } }
-      ]
-    },
+    style: 'https://tiles.openfreemap.org/styles/dark',
     center: [10, 20],
     zoom: 1.5,
-    minZoom: 0,
+    minZoom: 0.5,
     maxZoom: 14,
-    attributionControl: false
+    attributionControl: false,
+    // Auf iPhone wichtig: sanfteres Scrollen
+    touchPitch: false,
+    pitchWithRotate: false
   });
 
-  MAP.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
-  MAP.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+  // Zoom-Buttons (oben rechts)
+  MAP.addControl(new maplibregl.NavigationControl({
+    showCompass: false,
+    showZoom: true
+  }), 'top-right');
+
+  // Attribution kompakt (unten rechts)
+  MAP.addControl(
+    new maplibregl.AttributionControl({ compact: true }),
+    'bottom-right'
+  );
 
   MAP.on('load', () => {
     initCountryLayer();
     renderMap();
+  });
+
+  // Fallback: falls openfreemap.org nicht erreichbar (z.B. offline ohne Cache),
+  // auf einen minimalen Inline-Style zurückfallen
+  MAP.on('error', (e) => {
+    if (e.error && !MAP._darkFallbackDone) {
+      MAP._darkFallbackDone = true;
+      console.warn('[CruiseLog] Dark map style nicht ladbar – Fallback aktiv');
+      MAP.setStyle({
+        version: 8,
+        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        sources: {},
+        layers: [{
+          id: 'bg',
+          type: 'background',
+          paint: { 'background-color': '#001428' }
+        }]
+      });
+      setTimeout(() => { initCountryLayer(); renderMap(); }, 300);
+    }
   });
 }
 
@@ -547,42 +595,50 @@ function initCountryLayer() {
 
       MAP.addSource('countries', { type: 'geojson', data });
 
-      // Base layer – subtle ocean-blue tint for all countries
+      // Basis-Füllung – auf dunkler Vektorkarte unsichtbar lassen
       MAP.addLayer({
         id: 'countries-fill',
         type: 'fill',
         source: 'countries',
         paint: {
-          'fill-color': '#dde8f4',
-          'fill-opacity': 0.45
+          'fill-color': '#0a1628',
+          'fill-opacity': 0.0
         }
       });
 
-      // Visited-country highlight layer – initially shows nothing.
-      // The fill-color uses a 'match' expression so MapLibre can
-      // evaluate it purely from feature properties without a filter,
-      // which is more robust across MapLibre versions.
-      // updateCountryHighlight() switches between 'match' (coloured)
-      // and a simple constant (transparent) approach via setFilter.
+      // Besuchte Länder – subtile blaue Füllung
       MAP.addLayer({
         id: 'countries-visited',
         type: 'fill',
         source: 'countries',
-        // Start with a filter that never matches (invisible)
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'fill-color': '#0052cc',
-          'fill-opacity': 0.50
+          'fill-color': '#1a4a8a',
+          'fill-opacity': 0.38
         }
       });
 
+      // Goldene Outline für besuchte Länder
+      MAP.addLayer({
+        id: 'countries-visited-line',
+        type: 'line',
+        source: 'countries',
+        filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
+        paint: {
+          'line-color': '#c9a84c',
+          'line-width': 1.6,
+          'line-opacity': 0.80
+        }
+      });
+
+      // Ländergrenzen allgemein – sehr dezent auf dunkler Karte
       MAP.addLayer({
         id: 'countries-line',
         type: 'line',
         source: 'countries',
         paint: {
-          'line-color': '#b8ccdf',
-          'line-width': 0.8
+          'line-color': 'rgba(100,130,170,0.20)',
+          'line-width': 0.5
         }
       });
 
@@ -604,24 +660,31 @@ function updateCountryHighlight() {
     getAllPorts().filter(p => S.vp.includes(p.id) && p.cc).map(p => p.cc)
   )];
 
+  const HIDE = ['==', ['literal', false], true];
+
   if (highlight && visitedCodes.length > 0) {
-    // Basis-Filter mit korrektem Property-Namen des geo-countries Datasets
+    // Basis-Filter: ISO3166-1-Alpha-2 Match
     const filter = ['any', ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, true, false]];
 
-    // Workaround für Natural-Earth-Lücken ("-99" Problem bei Ländern mit Überseegebieten)
+    // Workaround für Natural-Earth-Lücken ("-99" Problem bei Überseegebieten)
     const specialNames = [];
     if (visitedCodes.includes('FR')) specialNames.push('France');
     if (visitedCodes.includes('NO')) specialNames.push('Norway');
-
-    // Falls nötig, Namen-Match zum Filter hinzufügen
     if (specialNames.length > 0) {
       filter.push(['match', ['get', 'name'], specialNames, true, false]);
     }
 
+    // Beide Visited-Layer (Füllung + goldene Outline) aktualisieren
     MAP.setFilter('countries-visited', filter);
+    if (MAP.getLayer('countries-visited-line')) {
+      MAP.setFilter('countries-visited-line', filter);
+    }
   } else {
-    // Layer verstecken, wenn Toggle aus ist oder nichts besucht wurde
-    MAP.setFilter('countries-visited', ['==', ['literal', false], true]);
+    // Beide Layer verstecken
+    MAP.setFilter('countries-visited', HIDE);
+    if (MAP.getLayer('countries-visited-line')) {
+      MAP.setFilter('countries-visited-line', HIDE);
+    }
   }
 }
 
@@ -644,45 +707,175 @@ function drawMarkers() {
 
   const geojson = { type: 'FeatureCollection', features };
 
+  // Wenn Source bereits existiert, nur Daten aktualisieren
   if (MAP.getSource('ports')) {
     MAP.getSource('ports').setData(geojson);
-  } else {
-    MAP.addSource('ports', { type: 'geojson', data: geojson });
-
-    MAP.addLayer({
-      id: 'ports-circle',
-      type: 'circle',
-      source: 'ports',
-      paint: {
-        'circle-radius': 6,
-        'circle-color': '#c9a84c',
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 1.5,
-        'circle-opacity': 0.95
-      }
-    });
-
-    MAP.on('click', 'ports-circle', e => {
-      const p = e.features[0].properties;
-      new maplibregl.Popup({ closeButton: false, offset: 10 })
-        .setLngLat(e.features[0].geometry.coordinates)
-        .setHTML(`
-          <div style="font-family:'Nunito',sans-serif;font-size:12px;
-                      line-height:1.5;padding:2px 4px">
-            <b>${p.flag} ${p.name}</b><br>
-            <span style="color:#5a6a80">${p.country}</span>
-          </div>
-        `)
-        .addTo(MAP);
-    });
-
-    MAP.on('mouseenter', 'ports-circle', () => {
-      MAP.getCanvas().style.cursor = 'pointer';
-    });
-    MAP.on('mouseleave', 'ports-circle', () => {
-      MAP.getCanvas().style.cursor = '';
-    });
+    return;
   }
+
+  // ── Source mit Clustering ─────────────────────────────────────────────────
+  MAP.addSource('ports', {
+    type: 'geojson',
+    data: geojson,
+    cluster: true,
+    clusterMaxZoom: 9,   // Ab Zoom 9+ lösen sich Cluster auf
+    clusterRadius: 55    // Pixel-Radius in dem Punkte zu einem Cluster werden
+  });
+
+  // ── Cluster: Äußerer Glow-Ring (Badge-Halo) ───────────────────────────────
+  MAP.addLayer({
+    id: 'clusters-glow',
+    type: 'circle',
+    source: 'ports',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#c9a84c',
+      'circle-radius': [
+        'interpolate', ['linear'], ['get', 'point_count'],
+        2,  28,
+        20, 36,
+        80, 46
+      ],
+      'circle-blur': 0.85,
+      'circle-opacity': 0.20
+    }
+  });
+
+  // ── Cluster: Gold-Badge (Kreis) ───────────────────────────────────────────
+  MAP.addLayer({
+    id: 'clusters',
+    type: 'circle',
+    source: 'ports',
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': '#c9a84c',
+      'circle-radius': [
+        'interpolate', ['linear'], ['get', 'point_count'],
+        2,  18,
+        20, 24,
+        80, 32
+      ],
+      'circle-stroke-color': 'rgba(201,168,76,0.35)',
+      'circle-stroke-width': 6,
+      'circle-opacity': 0.92
+    }
+  });
+
+  // ── Cluster: Zahl im Badge ────────────────────────────────────────────────
+  MAP.addLayer({
+    id: 'cluster-count',
+    type: 'symbol',
+    source: 'ports',
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': ['get', 'point_count_abbreviated'],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': 13,
+      'text-allow-overlap': true
+    },
+    paint: {
+      'text-color': '#1a0e00',
+      'text-halo-color': 'rgba(255,255,255,0.15)',
+      'text-halo-width': 0.5
+    }
+  });
+
+  // ── Einzelne Punkte (nicht geclustert): Glow outer ───────────────────────
+  MAP.addLayer({
+    id: 'ports-glow-outer',
+    type: 'circle',
+    source: 'ports',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        1,  8,
+        4,  14,
+        8,  20,
+        12, 26
+      ],
+      'circle-color': '#c9a84c',
+      'circle-blur': 1.4,
+      'circle-opacity': 0.22
+    }
+  });
+
+  // ── Einzelne Punkte: Glow mid ─────────────────────────────────────────────
+  MAP.addLayer({
+    id: 'ports-glow-mid',
+    type: 'circle',
+    source: 'ports',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        1,  5,
+        4,  8,
+        8,  12,
+        12, 16
+      ],
+      'circle-color': '#f5e8c0',
+      'circle-blur': 0.5,
+      'circle-opacity': 0.40
+    }
+  });
+
+  // ── Einzelne Punkte: Kern ─────────────────────────────────────────────────
+  MAP.addLayer({
+    id: 'ports-circle',
+    type: 'circle',
+    source: 'ports',
+    filter: ['!', ['has', 'point_count']],
+    paint: {
+      'circle-radius': [
+        'interpolate', ['linear'], ['zoom'],
+        1,  2.5,
+        4,  4,
+        8,  6,
+        12, 8
+      ],
+      'circle-color': '#c9a84c',
+      'circle-stroke-color': 'rgba(255,255,255,0.90)',
+      'circle-stroke-width': 1.5,
+      'circle-opacity': 1.0,
+      'circle-blur': 0
+    }
+  });
+
+  // ── Cluster anklicken → hereinzoomen ─────────────────────────────────────
+  MAP.on('click', 'clusters', e => {
+    const feature = e.features[0];
+    const clusterId = feature.properties.cluster_id;
+    MAP.getSource('ports').getClusterExpansionZoom(clusterId, (err, zoom) => {
+      if (err) return;
+      MAP.easeTo({
+        center: feature.geometry.coordinates,
+        zoom: Math.min(zoom + 0.5, 14),
+        duration: 400
+      });
+    });
+  });
+
+  // ── Einzelhafen anklicken → Popup ─────────────────────────────────────────
+  MAP.on('click', 'ports-circle', e => {
+    const p = e.features[0].properties;
+    new maplibregl.Popup({ closeButton: false, offset: 12, maxWidth: '200px' })
+      .setLngLat(e.features[0].geometry.coordinates)
+      .setHTML(`
+        <div style="font-family:'Nunito',sans-serif;font-size:12px;
+                    line-height:1.6;color:#fff">
+          <b style="font-size:13px;color:#f5e8c0">${p.flag} ${p.name}</b><br>
+          <span style="color:rgba(201,168,76,0.75);font-size:11px">${p.country}</span>
+        </div>
+      `)
+      .addTo(MAP);
+  });
+
+  // ── Cursor bei Cluster und Einzelpunkt ───────────────────────────────────
+  ['clusters', 'ports-circle'].forEach(layer => {
+    MAP.on('mouseenter', layer, () => { MAP.getCanvas().style.cursor = 'pointer'; });
+    MAP.on('mouseleave', layer, () => { MAP.getCanvas().style.cursor = ''; });
+  });
 }
 
 

@@ -1,5 +1,5 @@
-// CruiseLog Service Worker v4.1 – Cache-Bump + Network-First für App-Shell
-const CACHE = 'cruiselog-v4.1';   // ← hochgezählt → löscht alten cruiselog-v4 Cache zwingend
+// CruiseLog Service Worker v5.0 – Dark Map (Protomaps / OpenFreeMap) + PMTiles-Cache
+const CACHE = 'cruiselog-v5.0';   // ← hochgezählt → löscht alten cruiselog-v4.x Cache zwingend
 const ASSETS = [
   './',
   './index.html',
@@ -70,9 +70,48 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // ── Map-Tiles: Network-Only (nicht cachen) ────────────────────────────────
+  // ── Karten-CDNs: Network-first mit Cache-Fallback ────────────────────────
+  // api.protomaps.com  → Style-JSON & Tiles vom Protomaps-CDN
+  // tiles.openfreemap.org → kostenloser Dark-Style (aktuell genutzt)
+  if (url.hostname === 'api.protomaps.com' ||
+      url.hostname === 'tiles.openfreemap.org') {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, clone));
+        }
+        return res;
+      }).catch(() =>
+        caches.match(e.request).then(cached =>
+          cached || new Response('', { status: 503 })
+        )
+      )
+    );
+    return;
+  }
+
+  // ── PMTiles Style-JSON: Cache-first ──────────────────────────────────────
+  // protomaps.github.io liefert den Style-JSON für den Dark-Map-Look.
+  // Cache-first, weil sich der Stil selten ändert und offline wertvoll ist.
+  if (url.hostname === 'protomaps.github.io') {
+    e.respondWith(
+      caches.open(CACHE).then(cache =>
+        cache.match(e.request).then(cached => {
+          if (cached) return cached;
+          return fetch(e.request).then(res => {
+            if (res.ok) cache.put(e.request, res.clone());
+            return res;
+          }).catch(() => new Response('', { status: 503 }));
+        })
+      )
+    );
+    return;
+  }
+
+  // ── Map-Tiles: Network-Only (nicht cachen – zu groß) ─────────────────────
+  // OpenSeaMap entfernt (nicht mehr verwendet).
   if (url.hostname === 'tile.openstreetmap.org' ||
-      url.hostname === 'tiles.openseamap.org' ||
       url.hostname.endsWith('.githubusercontent.com')) {
     e.respondWith(fetch(e.request).catch(() => new Response('', { status: 503 })));
     return;
