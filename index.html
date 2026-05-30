@@ -237,7 +237,34 @@ textarea.fi{resize:vertical;min-height:72px}
   background: #c9a84c;
 }
 
+/* ── Karten-Reset-Button ──────────────────────────────────────── */
+.map-reset-btn {
+  position: absolute;
+  bottom: 60px;    /* über den Zoom-Controls */
+  right: 12px;
+  z-index: 10;
+  width: 38px;
+  height: 38px;
+  background: rgba(0,16,40,0.85);
+  border: 1px solid rgba(201,168,76,0.30);
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  backdrop-filter: blur(6px);
+  color: #c9a84c;
+  transition: background .15s;
+}
+.map-reset-btn:active { background: rgba(201,168,76,0.18); }
+
 /* ── Dark Map: MapLibre Zoom-Controls stylen ─────────────────────── */
+/* Karten-Canvas leicht entsättigt → goldene Häfen-Marker stechen besser hervor */
+#maplibre-map canvas {
+  filter: saturate(0.80) brightness(0.92);
+}
 .maplibregl-ctrl-group {
   background: rgba(0,16,40,0.85) !important;
   border: 1px solid rgba(201,168,76,0.30) !important;
@@ -411,6 +438,9 @@ textarea.fi{resize:vertical;min-height:72px}
         <span class="map-toggle-dot"></span>
         Länder
       </label>
+
+      <!-- Weltkarte-Reset Button unten rechts (neben Zoom) -->
+      <button class="map-reset-btn" onclick="fitToVisitedPorts()" title="Auf Häfen einzoomen">🗺️</button>
 
       <!-- versteckte IDs für Kompatibilität mit renderDashboard -->
       <span id="s-lines" style="display:none">0</span>
@@ -719,11 +749,12 @@ function initMap() {
   if (!document.getElementById('maplibre-map')) return;
 
   // ── Dark Vector Map via OpenFreeMap (kostenlos, kein API-Key) ────────────
+  // 'liberty'-Style: sauberer, weniger Details bei niedrigem Zoom → bessere Übersicht
   MAP = new maplibregl.Map({
     container: 'maplibre-map',
-    style: 'https://tiles.openfreemap.org/styles/dark',
+    style: 'https://tiles.openfreemap.org/styles/liberty',
     center: [10, 20],
-    zoom: 1.8,
+    zoom: 2.0,
     minZoom: 0.5,
     maxZoom: 14,
     attributionControl: false,
@@ -747,6 +778,8 @@ function initMap() {
     initCountryLayer();   // startet async fetch für Länderdaten
     // Häfen sofort zeichnen – kein Warten auf Länderdaten nötig
     drawMarkers();
+    // Automatisch auf besuchte Häfen zoomen wenn vorhanden
+    fitToVisitedPorts();
   });
 
   // Bei Style-Neuladen (z.B. nach Offline-Fallback) Layer neu aufbauen
@@ -884,6 +917,28 @@ function updateCountryHighlight() {
   }
 }
 
+function fitToVisitedPorts() {
+  // Beim ersten Öffnen: Zoom auf alle besuchten Häfen wenn vorhanden
+  const visited = getAllPorts().filter(p => S.vp.includes(p.id) && p.lat != null && p.lng != null);
+  if (visited.length === 0) return;
+
+  if (visited.length === 1) {
+    MAP.flyTo({ center: [visited[0].lng, visited[0].lat], zoom: 6, duration: 800 });
+    return;
+  }
+
+  // Bounding Box aller besuchten Häfen berechnen
+  const lngs = visited.map(p => p.lng);
+  const lats = visited.map(p => p.lat);
+  const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+
+  MAP.fitBounds(
+    [[minLng - 5, minLat - 3], [maxLng + 5, maxLat + 3]],
+    { padding: 40, maxZoom: 7, duration: 900, animate: true }
+  );
+}
+
 function renderMap() {
   if (!MAP) return;
   if (!MAP.loaded()) {
@@ -962,15 +1017,16 @@ function drawMarkers() {
   }
 
   // ── Source mit Clustering ──────────────────────────────────────────────────
-  // clusterRadius niedrig → weniger aggressives Clustering, mehr sichtbare Einzelpunkte
-  // clusterMinPoints auf 3 → 2 nahe Häfen bleiben als Einzelpunkte sichtbar
+  // clusterMinPoints 2 → schon 2 nahe Häfen werden geclustert (weniger Überlagerung)
+  // clusterMaxZoom 8 → ab Zoom 8 immer Einzelpunkte (genug Detail)
+  // clusterRadius 60 → aggressiveres Clustering bei Weltzoom
   MAP.addSource('ports', {
     type: 'geojson',
     data: geojson,
     cluster: true,
-    clusterMaxZoom: 9,
-    clusterRadius: 55,
-    clusterMinPoints: 3
+    clusterMaxZoom: 8,
+    clusterRadius: 60,
+    clusterMinPoints: 2
   });
 
   // ── Cluster: Äußerer Glow-Halo ────────────────────────────────────────────
@@ -981,9 +1037,9 @@ function drawMarkers() {
     filter: ['has', 'point_count'],
     paint: {
       'circle-color': '#c9a84c',
-      'circle-radius': ['interpolate',['linear'],['zoom'], 0,34, 3,38, 6,44, 9,52, 12,62],
-      'circle-blur': 0.80,
-      'circle-opacity': 0.30
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,30, 3,36, 6,42, 9,50],
+      'circle-blur': 0.75,
+      'circle-opacity': 0.28
     }
   });
 
@@ -994,10 +1050,16 @@ function drawMarkers() {
     source: 'ports',
     filter: ['has', 'point_count'],
     paint: {
-      'circle-color': '#c9a84c',
-      'circle-radius': ['interpolate',['linear'],['zoom'], 0,18, 3,21, 6,24, 9,28, 12,34],
-      'circle-stroke-color': 'rgba(255,255,255,0.45)',
-      'circle-stroke-width': 3,
+      // Größer bei niedrigem Zoom damit Cluster auf der Weltkarte gut sichtbar sind
+      'circle-color': [
+        'step', ['get', 'point_count'],
+        '#c9a84c',   // klein: gold
+        10, '#e8a020',  // mittel: helles gold
+        50, '#ff8c00'   // groß: orange-gold
+      ],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,20, 3,23, 6,26, 9,30],
+      'circle-stroke-color': 'rgba(255,255,255,0.55)',
+      'circle-stroke-width': 2.5,
       'circle-opacity': 0.97
     }
   });
@@ -1011,28 +1073,28 @@ function drawMarkers() {
     layout: {
       'text-field': ['get', 'point_count_abbreviated'],
       'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 0, 12, 6, 14, 12, 16],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 0, 11, 6, 13, 12, 15],
       'text-allow-overlap': true
     },
     paint: {
       'text-color': '#1a0800',
-      'text-halo-color': 'rgba(255,240,200,0.2)',
+      'text-halo-color': 'rgba(255,240,200,0.15)',
       'text-halo-width': 0.5
     }
   });
 
-  // ── Einzelne Punkte: Großer äußerer Glow (sehr sichtbar auch bei rauszoomen) ──
+  // ── Einzelne Punkte: Großer äußerer Glow ─────────────────────────────────
+  // Bei Weltzoom (1.8) deutlich größere Radien damit Häfen gut sichtbar sind
   MAP.addLayer({
     id: 'ports-glow-outer',
     type: 'circle',
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      // Bei Zoom 0 (Weltkarte) Radius 11 → gut sichtbarer goldener Leuchtpunkt
-      'circle-radius': ['interpolate',['linear'],['zoom'], 0,11, 3,13, 5,15, 8,20, 12,28],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,16, 3,18, 5,18, 8,22, 12,30],
       'circle-color': '#c9a84c',
-      'circle-blur': 0.7,
-      'circle-opacity': 0.55
+      'circle-blur': 0.65,
+      'circle-opacity': 0.50
     }
   });
 
@@ -1043,37 +1105,37 @@ function drawMarkers() {
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      'circle-radius': ['interpolate',['linear'],['zoom'], 0,6, 3,7, 5,9, 8,13, 12,18],
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,9, 3,10, 5,11, 8,14, 12,19],
       'circle-color': '#ffe8a0',
-      'circle-blur': 0.2,
-      'circle-opacity': 0.70
+      'circle-blur': 0.15,
+      'circle-opacity': 0.75
     }
   });
 
-  // ── Einzelne Punkte: Harter goldener Kern – immer sichtbar ───────────────
+  // ── Einzelne Punkte: Harter goldener Kern – bei Weltzoom größer ──────────
   MAP.addLayer({
     id: 'ports-circle',
     type: 'circle',
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
     paint: {
-      // Minimum-Radius 5px bei Zoom 0 → nie kleiner als ein deutlicher Punkt
-      'circle-radius': ['interpolate',['linear'],['zoom'], 0,5, 3,6, 5,7, 8,8, 12,10],
+      // Minimum 7px bei Zoom 0 → immer gut sichtbar als leuchtender Punkt
+      'circle-radius': ['interpolate',['linear'],['zoom'], 0,7, 2,7, 5,7, 8,8, 12,10],
       'circle-color': '#c9a84c',
       'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': ['interpolate',['linear'],['zoom'], 0,1.5, 5,2, 10,2.5],
+      'circle-stroke-width': ['interpolate',['linear'],['zoom'], 0,2, 5,2, 10,2.5],
       'circle-opacity': 1.0,
       'circle-blur': 0
     }
   });
 
-  // ── Einzelne Punkte: Anker-Symbol (bei Zoom ≥ 5) ─────────────────────────
+  // ── Einzelne Punkte: Anker-Symbol (bei Zoom ≥ 4) ─────────────────────────
   MAP.addLayer({
     id: 'ports-icon',
     type: 'symbol',
     source: 'ports',
     filter: ['!', ['has', 'point_count']],
-    minzoom: 5,
+    minzoom: 4,
     layout: {
       'icon-image': 'port-anchor',
       'icon-size': ['interpolate',['linear'],['zoom'], 5,0.75, 8,0.9, 12,1.1],
