@@ -742,112 +742,6 @@ textarea.fi{resize:vertical;min-height:72px}
 
 
 // ── Karte nach dem Laden auf Night-Look stylen ────────────────────────────
-function _styleMapToNightLook() {
-  if (!MAP) return;
-  const style = MAP.getStyle();
-  if (!style || !style.layers) return;
-
-  // Farb-Palette
-  const C = {
-    bg:       '#05244a',   // Hintergrund / Ozean-Basis
-    water:    '#0d3d6b',   // Wasserflächen
-    land:     '#1a2b42',   // Alle Landflächen – einheitlich, kein Flecken
-    ice:      '#ccdff0',   // Gletscher / Schnee
-    waterLine:'rgba(13,61,107,0.7)',
-    border:   'rgba(40,60,100,0.50)',
-    lblColor: 'rgba(155,185,225,0.85)',
-    lblHalo:  'rgba(4,18,45,0.90)',
-  };
-
-  style.layers.forEach(layer => {
-    const id   = layer.id.toLowerCase();
-    const type = layer.type;
-    try {
-
-      // ── Hintergrund ───────────────────────────────────────────────────────
-      if (type === 'background') {
-        MAP.setPaintProperty(layer.id, 'background-color', C.bg);
-        return;
-      }
-
-      // ── Fill-Layer ────────────────────────────────────────────────────────
-      if (type === 'fill') {
-        // Wasser
-        if (id === 'water' || id.startsWith('water-') || id.startsWith('water_') ||
-            ['ocean','sea','lake','reservoir','riverbank','river_area',
-             'swimming_pool','water_intermittent','water_shadow'].includes(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', C.water);
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 1.0);
-          return;
-        }
-        // Eis / Gletscher
-        if (['glacier','ice','snow','ice_shelf','snowfield'].includes(id) ||
-            /^(glacier|ice_|snow_)/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', C.ice);
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.95);
-          return;
-        }
-        // ALLE anderen Fill-Layer (Land, Wälder, Parks, Felder,
-        // Gebäude, residential, industrial …) → einheitliche Landfarbe
-        // Das eliminiert den "Flecken"-Effekt komplett
-        MAP.setPaintProperty(layer.id, 'fill-color', C.land);
-        MAP.setPaintProperty(layer.id, 'fill-opacity', 1.0);
-        return;
-      }
-
-      // ── Line-Layer ────────────────────────────────────────────────────────
-      if (type === 'line') {
-        // Wasserlinien
-        if (id === 'waterway' || id.startsWith('waterway-') || id.startsWith('waterway_')) {
-          MAP.setPaintProperty(layer.id, 'line-color', C.waterLine);
-          MAP.setPaintProperty(layer.id, 'line-opacity', 1.0);
-          return;
-        }
-        // Grenzen / Admin
-        if (/admin|boundary|border/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'line-color', C.border);
-          try { MAP.setPaintProperty(layer.id, 'line-width', 0.6); } catch(e) {}
-          return;
-        }
-        // Straßen / Wege / Schienen → erst ab Zoom 13 sichtbar
-        if (/road|motorway|trunk|primary|secondary|tertiary|minor|
-            street|path|track|rail|bridge|tunnel|link|service|
-            residential|pedestrian|cycleway/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'line-opacity', [
-            'interpolate', ['linear'], ['zoom'],
-            0, 0,  12, 0,  13, 0.3,  15, 0.65,  17, 0.90
-          ]);
-          return;
-        }
-        // Alle anderen Linien (Küsten etc.) → dezent
-        MAP.setPaintProperty(layer.id, 'line-opacity', 0.35);
-        return;
-      }
-
-      // ── Symbol-Layer (Labels) ─────────────────────────────────────────────
-      if (type === 'symbol') {
-        // Straßen-Labels erst ab Zoom 14
-        if (/road|street|motorway|highway/.test(id)) {
-          MAP.setLayoutProperty(layer.id, 'visibility',
-            'visible'); // Sichtbarkeit via minzoom steuern
-          try {
-            MAP.setPaintProperty(layer.id, 'text-opacity', [
-              'interpolate', ['linear'], ['zoom'], 0, 0, 13, 0, 14, 1
-            ]);
-          } catch(e) {}
-        }
-        // Alle Label-Farben einheitlich blau-weiß
-        try {
-          MAP.setPaintProperty(layer.id, 'text-color', C.lblColor);
-          MAP.setPaintProperty(layer.id, 'text-halo-color', C.lblHalo);
-          MAP.setPaintProperty(layer.id, 'text-halo-width', 1.2);
-        } catch(e) {}
-      }
-
-    } catch(e) {}
-  });
-}
-
 // ── MapLibre-Kartenlogik ───────────────────────────────────────────────────
 let MAP = null;
 let GEO_LOADED = false;
@@ -856,14 +750,135 @@ function initMap() {
   if (MAP) return;
   if (!document.getElementById('maplibre-map')) return;
 
-  // ── Karte: OpenFreeMap Dark als zuverlässige Basis ───────────────────────
+  // ── Minimaler Inline Dark-Stil – kein nachträgliches Umfärben nötig ──────
+  // Basiert auf OpenFreeMap-Tiles, aber mit eigenem Dark-Farbschema.
+  // So entfällt die teure setPaintProperty-Schleife komplett.
+  const DARK_STYLE = {
+    version: 8,
+    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+    sprite: 'https://tiles.openfreemap.org/sprites/liberty/sprite',
+    sources: {
+      openmaptiles: {
+        type: 'vector',
+        url: 'https://tiles.openfreemap.org/planet'
+      }
+    },
+    layers: [
+      // Hintergrund
+      { id: 'bg', type: 'background',
+        paint: { 'background-color': '#05244a' } },
+
+      // Wasser
+      { id: 'water', type: 'fill', source: 'openmaptiles',
+        'source-layer': 'water',
+        paint: { 'fill-color': '#0d3d6b', 'fill-opacity': 1 } },
+
+      // Eis / Gletscher
+      { id: 'ice', type: 'fill', source: 'openmaptiles',
+        'source-layer': 'landcover',
+        filter: ['==', ['get', 'class'], 'ice'],
+        paint: { 'fill-color': '#c8ddf0', 'fill-opacity': 0.95 } },
+
+      // Landmasse (alle landuse/landcover) – einheitlich, kein Flecken
+      { id: 'landcover', type: 'fill', source: 'openmaptiles',
+        'source-layer': 'landcover',
+        filter: ['!=', ['get', 'class'], 'ice'],
+        paint: { 'fill-color': '#162236', 'fill-opacity': 0.85 } },
+
+      { id: 'landuse', type: 'fill', source: 'openmaptiles',
+        'source-layer': 'landuse',
+        paint: { 'fill-color': '#162236', 'fill-opacity': 0.75 } },
+
+      // Gebäude (ab Zoom 14)
+      { id: 'building', type: 'fill', source: 'openmaptiles',
+        'source-layer': 'building', minzoom: 14,
+        paint: { 'fill-color': '#1e2f45', 'fill-opacity': 0.9 } },
+
+      // Grenzen
+      { id: 'boundary-country', type: 'line', source: 'openmaptiles',
+        'source-layer': 'boundary',
+        filter: ['==', ['get', 'admin_level'], 2],
+        paint: { 'line-color': 'rgba(40,65,110,0.55)', 'line-width': 0.7 } },
+
+      { id: 'boundary-state', type: 'line', source: 'openmaptiles',
+        'source-layer': 'boundary',
+        filter: ['==', ['get', 'admin_level'], 4],
+        minzoom: 4,
+        paint: { 'line-color': 'rgba(35,55,95,0.35)',
+                 'line-width': 0.5, 'line-dasharray': [4, 3] } },
+
+      // Wasserläufe
+      { id: 'waterway', type: 'line', source: 'openmaptiles',
+        'source-layer': 'waterway', minzoom: 8,
+        paint: { 'line-color': '#0d3d6b', 'line-width': 1, 'line-opacity': 0.8 } },
+
+      // Straßen – erst ab Zoom 13
+      { id: 'roads-minor', type: 'line', source: 'openmaptiles',
+        'source-layer': 'transportation', minzoom: 13,
+        filter: ['in', ['get', 'class'],
+          ['literal', ['minor','service','path','track','footway','cycleway']]],
+        paint: { 'line-color': '#1f3350', 'line-width': 0.8, 'line-opacity': 0.7 } },
+
+      { id: 'roads-main', type: 'line', source: 'openmaptiles',
+        'source-layer': 'transportation', minzoom: 10,
+        filter: ['in', ['get', 'class'],
+          ['literal', ['primary','secondary','tertiary','residential','trunk']]],
+        paint: { 'line-color': '#1f3a5c', 'line-width': [
+          'interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5
+        ], 'line-opacity': 0.75 } },
+
+      { id: 'roads-major', type: 'line', source: 'openmaptiles',
+        'source-layer': 'transportation', minzoom: 6,
+        filter: ['in', ['get', 'class'], ['literal', ['motorway','trunk']]],
+        paint: { 'line-color': '#1f3a5c', 'line-width': [
+          'interpolate', ['linear'], ['zoom'], 6, 0.5, 12, 1.2, 16, 2.5
+        ], 'line-opacity': 0.65 } },
+
+      // Orts-Labels
+      { id: 'place-country', type: 'symbol', source: 'openmaptiles',
+        'source-layer': 'place', maxzoom: 6,
+        filter: ['==', ['get', 'class'], 'country'],
+        layout: {
+          'text-field': ['get', 'name:en'],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 1, 10, 4, 13],
+          'text-transform': 'uppercase',
+          'text-letter-spacing': 0.1
+        },
+        paint: { 'text-color': 'rgba(155,185,225,0.80)',
+                 'text-halo-color': 'rgba(4,18,45,0.90)', 'text-halo-width': 1.2 } },
+
+      { id: 'place-city', type: 'symbol', source: 'openmaptiles',
+        'source-layer': 'place', minzoom: 4,
+        filter: ['in', ['get', 'class'], ['literal', ['city','town']]],
+        layout: {
+          'text-field': ['get', 'name:en'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 4, 9, 10, 13],
+        },
+        paint: { 'text-color': 'rgba(155,185,225,0.80)',
+                 'text-halo-color': 'rgba(4,18,45,0.90)', 'text-halo-width': 1.2 } },
+
+      { id: 'place-village', type: 'symbol', source: 'openmaptiles',
+        'source-layer': 'place', minzoom: 9,
+        filter: ['in', ['get', 'class'], ['literal', ['village','suburb','hamlet']]],
+        layout: {
+          'text-field': ['get', 'name:en'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': 10,
+        },
+        paint: { 'text-color': 'rgba(140,170,215,0.75)',
+                 'text-halo-color': 'rgba(4,18,45,0.90)', 'text-halo-width': 1.0 } },
+    ]
+  };
+
   MAP = new maplibregl.Map({
     container: 'maplibre-map',
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style: DARK_STYLE,
     center: [10, 20],
     zoom: 1.8,
     minZoom: 0.5,
-    maxZoom: 14,
+    maxZoom: 17,
     attributionControl: false,
     touchPitch: false,
     pitchWithRotate: false
@@ -882,8 +897,6 @@ function initMap() {
   );
 
   MAP.on('load', () => {
-    // ── Vektorkarte auf Foto-Look trimmen ──────────────────────────────────
-    _styleMapToNightLook();
     initCountryLayer();
     drawMarkers();
   });
