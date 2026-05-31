@@ -303,9 +303,9 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .maplibregl-popup-tip { display: none !important; }
 
-/* Karten-Canvas: leichter Nacht-Look via CSS-Filter */
+/* Karten-Canvas: minimaler Filter, kein hue-rotate (würde Land blau färben) */
 #maplibre-map canvas {
-  filter: brightness(0.90) saturate(1.20) contrast(1.05);
+  filter: brightness(0.86) saturate(1.10) contrast(1.06);
 }
 
 /* ── Karten-Legende unten Mitte ───────────────────────────────────── */
@@ -748,90 +748,85 @@ function _styleMapToNightLook() {
   if (!style || !style.layers) return;
 
   style.layers.forEach(layer => {
-    const id = layer.id.toLowerCase();
+    const id   = layer.id.toLowerCase();
     const type = layer.type;
     try {
-      // ── Hintergrund (Ozean-Basis) ─────────────────────────────────────────
+
+      // ── Hintergrund → tiefes Nachtblau ───────────────────────────────────
       if (type === 'background') {
         MAP.setPaintProperty(layer.id, 'background-color', '#05244a');
         return;
       }
 
-      // ── Flächen ───────────────────────────────────────────────────────────
       if (type === 'fill') {
-        // Wasser / Ozean
-        if (/water|ocean|sea|bay|gulf/.test(id)) {
+        // ── Nur echte Wasser-Flächen → Kobaltblau ────────────────────────
+        // Exakte IDs aus dem Liberty-Style, kein breiter Regex
+        const WATER_IDS = new Set([
+          'water','water_shadow','water-shadow','water-area',
+          'ocean','sea','lake','reservoir','riverbank','river_area',
+          'swimming_pool','water_intermittent'
+        ]);
+        if (WATER_IDS.has(id) || id.startsWith('water-') || id.startsWith('water_')) {
           MAP.setPaintProperty(layer.id, 'fill-color', '#0d3d6b');
           MAP.setPaintProperty(layer.id, 'fill-opacity', 1.0);
           return;
         }
-        // Eis / Schnee / Gletscher / Arktis / Antarktis → hell, realistisch weißlich-blau
-        if (/ice|snow|glacier|arctic|antarct|greenland|frozen/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', '#c8ddf0');
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.92);
+
+        // ── Eis / Gletscher → helles Eisblau-Weiß ────────────────────────
+        const ICE_IDS = new Set(['glacier','ice','snow','ice_shelf','snowfield']);
+        if (ICE_IDS.has(id) || /^(glacier|ice[_-]|snow[_-])/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'fill-color', '#ccdff0');
+          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.95);
           return;
         }
-        // Wald / Vegetation → dunkles Grüngrau
-        if (/forest|wood|park|grass|vegetation|scrub|farmland/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', '#1c2e1e');
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.85);
-          return;
-        }
-        // Sand / Wüste → warmes Dunkelbeige
-        if (/sand|desert|beach/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', '#2a2416');
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.85);
-          return;
-        }
-        // Stadtflächen / Gebäude → sehr dunkel
-        if (/building|urban|residential|commercial|industrial/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', '#111827');
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.8);
-          return;
-        }
-        // Allgemeine Landmasse → dunkles Blaugrau-Braun
-        if (/land|earth|continent|ground|area|polygon/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'fill-color', '#1a2535');
-          MAP.setPaintProperty(layer.id, 'fill-opacity', 0.90);
-          return;
-        }
+
+        // ── Alle anderen Fill-Layer: original lassen, nur leicht abdunkeln ─
+        // KEIN Blau auf Parkflächen, Gebäude, Stadtteile etc.
+        try {
+          const orig = MAP.getPaintProperty(layer.id, 'fill-opacity');
+          const o = typeof orig === 'number' ? orig : 1.0;
+          MAP.setPaintProperty(layer.id, 'fill-opacity', Math.min(o, 0.80));
+        } catch(e) {}
+        return;
       }
 
-      // ── Linien ────────────────────────────────────────────────────────────
       if (type === 'line') {
-        // Küstenlinien
-        if (/coast|shore|waterway/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'line-color', 'rgba(30,90,160,0.6)');
-          MAP.setPaintProperty(layer.id, 'line-width', 0.8);
+        // ── Wasserlinien → blau ───────────────────────────────────────────
+        if (id === 'waterway' || id.startsWith('waterway-') || id.startsWith('waterway_')) {
+          MAP.setPaintProperty(layer.id, 'line-color', 'rgba(13,61,107,0.75)');
           return;
         }
-        // Landesgrenzen → sehr dezent dunkelgrau (kaum sichtbar)
-        if (/boundary|border|country|admin/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'line-color', 'rgba(40,55,80,0.55)');
-          MAP.setPaintProperty(layer.id, 'line-width', 0.6);
-          MAP.setPaintProperty(layer.id, 'line-dasharray', [3, 2]);
+        // ── Verwaltungsgrenzen → dezentes Dunkelblau ──────────────────────
+        if (/admin|boundary|border/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'line-color', 'rgba(40,60,100,0.55)');
+          try { MAP.setPaintProperty(layer.id, 'line-width', 0.6); } catch(e) {}
           return;
         }
-        // Straßen / Schienen → komplett ausblenden
-        if (/road|street|highway|motorway|rail|tunnel|bridge/.test(id)) {
-          MAP.setPaintProperty(layer.id, 'line-opacity', 0);
+        // ── Straßen → zoom-adaptiv, bei niedrigem Zoom unsichtbar ─────────
+        if (/road|motorway|trunk|primary|secondary|tertiary|street|path|track|rail|bridge|tunnel/.test(id)) {
+          MAP.setPaintProperty(layer.id, 'line-opacity', [
+            'interpolate', ['linear'], ['zoom'],
+            0, 0, 7, 0, 9, 0.25, 12, 0.55, 15, 0.85
+          ]);
           return;
         }
       }
 
-      // ── Symbole / Labels ─────────────────────────────────────────────────
+      // ── Labels: zoom-adaptiv, blau-weißer Ton ────────────────────────────
       if (type === 'symbol') {
-        // Straßen-Labels ausblenden
-        if (/road|street|highway/.test(id)) {
-          MAP.setLayoutProperty(layer.id, 'visibility', 'none');
-          return;
-        }
-        // Alle anderen Labels: sanftes Blau-Weiß
-        MAP.setPaintProperty(layer.id, 'text-color', 'rgba(160,185,220,0.80)');
-        MAP.setPaintProperty(layer.id, 'text-halo-color', 'rgba(3,18,45,0.92)');
-        MAP.setPaintProperty(layer.id, 'text-halo-width', 1.2);
+        try {
+          MAP.setPaintProperty(layer.id, 'text-color', [
+            'interpolate', ['linear'], ['zoom'],
+            2,  'rgba(140,170,210,0.75)',
+            8,  'rgba(160,190,225,0.85)',
+            13, 'rgba(185,210,240,0.90)'
+          ]);
+          MAP.setPaintProperty(layer.id, 'text-halo-color', 'rgba(4,20,50,0.88)');
+          MAP.setPaintProperty(layer.id, 'text-halo-width', 1.2);
+        } catch(e) {}
       }
-    } catch(e) { /* Layer unterstützt Property nicht */ }
+
+    } catch(e) {}
   });
 }
 
