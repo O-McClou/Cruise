@@ -750,83 +750,89 @@ function initMap() {
   if (MAP) return;
   if (!document.getElementById('maplibre-map')) return;
 
-  // ── Satelliten-Nacht-Look (wie Foto) ─────────────────────────────────────
+  // ── Realistischer Satelliten/Physik-Kartenstil (wie auf den Fotos) ────────
   const MAP_STYLE = {
     version: 8,
     glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     sources: {
-      // ESRI World Physical – Basis bei Weltkarte
+      // ESRI World Physical Map – topografische Reliefkarte mit realistischen Farben
       'physical': {
         type: 'raster',
-        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}'],
-        tileSize: 256, maxzoom: 8,
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        maxzoom: 8,
         attribution: '© Esri, US National Park Service'
       },
-      // ESRI World Imagery – Satellit beim Reinzoomen
+      // ESRI World Imagery – echte Satellitenfotos beim Reinzoomen
       'satellite': {
         type: 'raster',
-        tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-        tileSize: 256, maxzoom: 19,
-        attribution: '© Esri, Maxar'
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: '© Esri, Maxar, Earthstar Geographics'
       },
-      // Vektor für Grenzen + Labels
+      // Vektorgrenzen + Labels via OpenFreeMap
       'openmaptiles': {
         type: 'vector',
         url: 'https://tiles.openfreemap.org/planet'
       }
     },
     layers: [
-      // Hintergrund: fast schwarz wie der Ozean im Foto
+      // Hintergrund (Ozean außerhalb der Tiles)
       { id: 'bg', type: 'background',
-        paint: { 'background-color': '#050d1a' } },
+        paint: { 'background-color': '#1a5a8a' } },
 
-      // Physische Karte (Weltkarte): leicht abgedunkelt, Sättigung erhöht
+      // Physische Karte (Zoom 0–8): grüne Wälder, braune Wüsten, blaue Meere
       { id: 'physical', type: 'raster', source: 'physical',
         maxzoom: 9,
         paint: {
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 5, 1.0, 9, 0.0],
-          'raster-brightness-min': 0.0,
-          'raster-brightness-max': 0.78,   // dunkler → Nacht-Look
-          'raster-saturation': 0.40,        // satter → realistischer
-          'raster-contrast': 0.15
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6, 1.0, 9, 0.0],
+          'raster-brightness-min': 0.05,
+          'raster-brightness-max': 1.0,
+          'raster-saturation': 0.15,
+          'raster-contrast': 0.05
         }
       },
 
-      // Satellitenbild: stark abgedunkelt, Ozeane werden fast schwarz
+      // Satellit (Zoom 7+): echte Bilder beim Reinzoomen
       { id: 'satellite', type: 'raster', source: 'satellite',
-        minzoom: 5,
+        minzoom: 6,
         paint: {
-          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 5, 0.0, 9, 1.0],
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.0, 9, 1.0],
           'raster-brightness-min': 0.0,
-          'raster-brightness-max': 0.75,   // Ozeane dunkel, Land sichtbar
-          'raster-saturation': 0.35,
-          'raster-contrast': 0.20
+          'raster-brightness-max': 0.95,
+          'raster-saturation': 0.1,
+          'raster-contrast': 0.05
         }
       },
 
-      // Ländergrenzen – dezent weiß/hellblau wie im Foto
+      // Ländergrenzen (Vektor) – dezent weiß
       { id: 'boundary-country', type: 'line', source: 'openmaptiles',
         'source-layer': 'boundary',
         filter: ['==', ['get', 'admin_level'], 2],
         paint: {
-          'line-color': 'rgba(200,220,255,0.30)',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 4, 0.7, 8, 1.0]
+          'line-color': 'rgba(255,255,255,0.35)',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 6, 0.8, 10, 1.2]
         }
       },
 
-      // Bundesstaaten (Zoom 5+)
+      // Bundesstaaten/Regionen (Zoom 4+)
       { id: 'boundary-state', type: 'line', source: 'openmaptiles',
         'source-layer': 'boundary',
         filter: ['==', ['get', 'admin_level'], 4],
-        minzoom: 5,
+        minzoom: 4,
         paint: {
-          'line-color': 'rgba(200,220,255,0.15)',
-          'line-width': 0.4,
+          'line-color': 'rgba(255,255,255,0.20)',
+          'line-width': 0.5,
           'line-dasharray': [4, 3]
         }
       },
 
-      // Ländernamen – weiß, klar lesbar
+      // Ländernamen
       { id: 'place-country', type: 'symbol', source: 'openmaptiles',
         'source-layer': 'place',
         filter: ['==', ['get', 'class'], 'country'],
@@ -834,33 +840,33 @@ function initMap() {
         layout: {
           'text-field': ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name']],
           'text-font': ['Noto Sans Bold'],
-          'text-size': ['interpolate', ['linear'], ['zoom'], 1, 10, 5, 15],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 1, 10, 5, 14],
           'text-transform': 'uppercase',
-          'text-letter-spacing': 0.14,
+          'text-letter-spacing': 0.12,
           'text-max-width': 8
         },
         paint: {
-          'text-color': 'rgba(255,255,255,0.92)',
-          'text-halo-color': 'rgba(0,0,0,0.60)',
-          'text-halo-width': 1.8
+          'text-color': 'rgba(255,255,255,0.90)',
+          'text-halo-color': 'rgba(0,0,0,0.45)',
+          'text-halo-width': 1.5
         }
       },
 
-      // Städtenamen
+      // Städtenamen (Zoom 5+)
       { id: 'place-city', type: 'symbol', source: 'openmaptiles',
         'source-layer': 'place',
         filter: ['in', ['get', 'class'], ['literal', ['city', 'town']]],
-        minzoom: 4,
+        minzoom: 5,
         layout: {
           'text-field': ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
-          'text-size': ['interpolate', ['linear'], ['zoom'], 4, 9, 10, 13],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 5, 9, 10, 13],
           'text-max-width': 8
         },
         paint: {
-          'text-color': 'rgba(240,245,255,0.88)',
-          'text-halo-color': 'rgba(0,0,0,0.65)',
-          'text-halo-width': 1.4
+          'text-color': 'rgba(255,255,255,0.88)',
+          'text-halo-color': 'rgba(0,0,0,0.50)',
+          'text-halo-width': 1.2
         }
       },
 
@@ -872,12 +878,13 @@ function initMap() {
         layout: {
           'text-field': ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
-          'text-size': 10, 'text-max-width': 6
+          'text-size': 10,
+          'text-max-width': 6
         },
         paint: {
-          'text-color': 'rgba(230,238,255,0.82)',
-          'text-halo-color': 'rgba(0,0,0,0.65)',
-          'text-halo-width': 1.2
+          'text-color': 'rgba(255,255,255,0.82)',
+          'text-halo-color': 'rgba(0,0,0,0.55)',
+          'text-halo-width': 1.0
         }
       }
     ]
@@ -930,44 +937,43 @@ function initCountryLayer() {
 
       MAP.addSource('countries', { type: 'geojson', data });
 
-      // Nicht-besuchte Länder: leicht abdunkeln (Satellit bleibt sichtbar)
+      // Alle Ländergrenzen – dezente dunkle Linie (immer sichtbar)
       MAP.addLayer({
-        id: 'countries-unvisited-dim',
-        type: 'fill',
+        id: 'countries-line',
+        type: 'line',
         source: 'countries',
-        filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'], // initial versteckt
         paint: {
-          'fill-color': '#000000',
-          'fill-opacity': 0.38
+          'line-color': 'rgba(20,35,60,0.70)',
+          'line-width': 0.7
         }
       });
 
-      // Besuchte Länder: heller Overlay → Satellit leuchtet durch
+      // Besuchte Länder – subtiler blauer Schimmer
       MAP.addLayer({
         id: 'countries-visited',
         type: 'fill',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'fill-color': '#4488ff',
-          'fill-opacity': 0.22
+          'fill-color': '#1a4aaa',
+          'fill-opacity': 0.30
         }
       });
 
-      // Besuchte Länder: goldene Grenzlinie, gut sichtbar
+      // Besuchte Länder – dezente goldene Grenzlinie (nicht dominant)
       MAP.addLayer({
         id: 'countries-visited-line',
         type: 'line',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'line-color': '#f0c040',
-          'line-width': 2.0,
-          'line-opacity': 0.90
+          'line-color': '#c9a84c',
+          'line-width': 1.2,
+          'line-opacity': 0.65
         }
       });
 
-      // Besuchte Länder: weicher goldener Glow außen
+      // Besuchte Länder – ganz weicher Glow (nur Hauch)
       MAP.addLayer({
         id: 'countries-visited-glow',
         type: 'line',
@@ -975,9 +981,9 @@ function initCountryLayer() {
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
           'line-color': '#c9a84c',
-          'line-width': 6.0,
-          'line-opacity': 0.22,
-          'line-blur': 4.0
+          'line-width': 3.5,
+          'line-opacity': 0.12,
+          'line-blur': 2.5
         }
       });
 
@@ -995,31 +1001,30 @@ function updateCountryHighlight() {
   if (!MAP || !GEO_LOADED) return;
   const highlight = document.getElementById('map-toggle')?.checked;
 
+  // Alle 2-Letter-Codes der besuchten Häfen extrahieren
   const visitedCodes = [...new Set(
     getAllPorts().filter(p => S.vp.includes(p.id) && p.cc).map(p => p.cc)
   )];
 
   const HIDE = ['==', ['literal', false], true];
-  const SHOW_ALL = null;
+
+  // Allgemeine Ländergrenzen immer sichtbar (dezente dunkle Linie)
+  if (MAP.getLayer('countries-line')) {
+    MAP.setFilter('countries-line', null);
+  }
 
   if (highlight && visitedCodes.length > 0) {
-    // Filter für besuchte Länder
-    const visitedFilter = ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, true, false];
-    // Filter für NICHT besuchte Länder (umgekehrt)
-    const unvisitedFilter = ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, false, true];
-
-    // Nicht-besuchte Länder abdunkeln
-    if (MAP.getLayer('countries-unvisited-dim')) {
-      MAP.setFilter('countries-unvisited-dim', unvisitedFilter);
+    const filter = ['any', ['match', ['get', 'ISO3166-1-Alpha-2'], visitedCodes, true, false]];
+    const specialNames = [];
+    if (visitedCodes.includes('FR')) specialNames.push('France');
+    if (visitedCodes.includes('NO')) specialNames.push('Norway');
+    if (specialNames.length > 0) {
+      filter.push(['match', ['get', 'name'], specialNames, true, false]);
     }
-    // Besuchte Länder: alle drei Layer aktivieren
-    MAP.setFilter('countries-visited',      visitedFilter);
-    if (MAP.getLayer('countries-visited-line')) MAP.setFilter('countries-visited-line', visitedFilter);
-    if (MAP.getLayer('countries-visited-glow')) MAP.setFilter('countries-visited-glow', visitedFilter);
-
+    MAP.setFilter('countries-visited', filter);
+    if (MAP.getLayer('countries-visited-line')) MAP.setFilter('countries-visited-line', filter);
+    if (MAP.getLayer('countries-visited-glow')) MAP.setFilter('countries-visited-glow', filter);
   } else {
-    // Toggle aus: alles zurücksetzen
-    if (MAP.getLayer('countries-unvisited-dim')) MAP.setFilter('countries-unvisited-dim', HIDE);
     MAP.setFilter('countries-visited', HIDE);
     if (MAP.getLayer('countries-visited-line')) MAP.setFilter('countries-visited-line', HIDE);
     if (MAP.getLayer('countries-visited-glow')) MAP.setFilter('countries-visited-glow', HIDE);
