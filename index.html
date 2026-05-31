@@ -303,9 +303,9 @@ textarea.fi{resize:vertical;min-height:72px}
 }
 .maplibregl-popup-tip { display: none !important; }
 
-/* Karten-Canvas: minimaler Filter, kein hue-rotate (würde Land blau färben) */
+/* Karten-Canvas: kein Filter – Satellitenbild soll natürlich aussehen */
 #maplibre-map canvas {
-  filter: brightness(0.86) saturate(1.10) contrast(1.06);
+  filter: none;
 }
 
 /* ── Karten-Legende unten Mitte ───────────────────────────────────── */
@@ -750,131 +750,149 @@ function initMap() {
   if (MAP) return;
   if (!document.getElementById('maplibre-map')) return;
 
-  // ── Minimaler Inline Dark-Stil – kein nachträgliches Umfärben nötig ──────
-  // Basiert auf OpenFreeMap-Tiles, aber mit eigenem Dark-Farbschema.
-  // So entfällt die teure setPaintProperty-Schleife komplett.
-  const DARK_STYLE = {
+  // ── Realistischer Satelliten/Physik-Kartenstil (wie auf den Fotos) ────────
+  const MAP_STYLE = {
     version: 8,
-    glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-    sprite: 'https://tiles.openfreemap.org/sprites/liberty/sprite',
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     sources: {
-      openmaptiles: {
+      // ESRI World Physical Map – topografische Reliefkarte mit realistischen Farben
+      'physical': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Physical_Map/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        maxzoom: 8,
+        attribution: '© Esri, US National Park Service'
+      },
+      // ESRI World Imagery – echte Satellitenfotos beim Reinzoomen
+      'satellite': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: '© Esri, Maxar, Earthstar Geographics'
+      },
+      // Vektorgrenzen + Labels via OpenFreeMap
+      'openmaptiles': {
         type: 'vector',
         url: 'https://tiles.openfreemap.org/planet'
       }
     },
     layers: [
-      // Hintergrund
+      // Hintergrund (Ozean außerhalb der Tiles)
       { id: 'bg', type: 'background',
-        paint: { 'background-color': '#05244a' } },
+        paint: { 'background-color': '#1a5a8a' } },
 
-      // Wasser
-      { id: 'water', type: 'fill', source: 'openmaptiles',
-        'source-layer': 'water',
-        paint: { 'fill-color': '#0d3d6b', 'fill-opacity': 1 } },
+      // Physische Karte (Zoom 0–8): grüne Wälder, braune Wüsten, blaue Meere
+      { id: 'physical', type: 'raster', source: 'physical',
+        maxzoom: 9,
+        paint: {
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6, 1.0, 9, 0.0],
+          'raster-brightness-min': 0.05,
+          'raster-brightness-max': 1.0,
+          'raster-saturation': 0.15,
+          'raster-contrast': 0.05
+        }
+      },
 
-      // Eis / Gletscher
-      { id: 'ice', type: 'fill', source: 'openmaptiles',
-        'source-layer': 'landcover',
-        filter: ['==', ['get', 'class'], 'ice'],
-        paint: { 'fill-color': '#c8ddf0', 'fill-opacity': 0.95 } },
+      // Satellit (Zoom 7+): echte Bilder beim Reinzoomen
+      { id: 'satellite', type: 'raster', source: 'satellite',
+        minzoom: 6,
+        paint: {
+          'raster-opacity': ['interpolate', ['linear'], ['zoom'], 6, 0.0, 9, 1.0],
+          'raster-brightness-min': 0.0,
+          'raster-brightness-max': 0.95,
+          'raster-saturation': 0.1,
+          'raster-contrast': 0.05
+        }
+      },
 
-      // Landmasse (alle landuse/landcover) – einheitlich, kein Flecken
-      { id: 'landcover', type: 'fill', source: 'openmaptiles',
-        'source-layer': 'landcover',
-        filter: ['!=', ['get', 'class'], 'ice'],
-        paint: { 'fill-color': '#162236', 'fill-opacity': 0.85 } },
-
-      { id: 'landuse', type: 'fill', source: 'openmaptiles',
-        'source-layer': 'landuse',
-        paint: { 'fill-color': '#162236', 'fill-opacity': 0.75 } },
-
-      // Gebäude (ab Zoom 14)
-      { id: 'building', type: 'fill', source: 'openmaptiles',
-        'source-layer': 'building', minzoom: 14,
-        paint: { 'fill-color': '#1e2f45', 'fill-opacity': 0.9 } },
-
-      // Grenzen
+      // Ländergrenzen (Vektor) – dezent weiß
       { id: 'boundary-country', type: 'line', source: 'openmaptiles',
         'source-layer': 'boundary',
         filter: ['==', ['get', 'admin_level'], 2],
-        paint: { 'line-color': 'rgba(40,65,110,0.55)', 'line-width': 0.7 } },
+        paint: {
+          'line-color': 'rgba(255,255,255,0.35)',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 6, 0.8, 10, 1.2]
+        }
+      },
 
+      // Bundesstaaten/Regionen (Zoom 4+)
       { id: 'boundary-state', type: 'line', source: 'openmaptiles',
         'source-layer': 'boundary',
         filter: ['==', ['get', 'admin_level'], 4],
         minzoom: 4,
-        paint: { 'line-color': 'rgba(35,55,95,0.35)',
-                 'line-width': 0.5, 'line-dasharray': [4, 3] } },
+        paint: {
+          'line-color': 'rgba(255,255,255,0.20)',
+          'line-width': 0.5,
+          'line-dasharray': [4, 3]
+        }
+      },
 
-      // Wasserläufe
-      { id: 'waterway', type: 'line', source: 'openmaptiles',
-        'source-layer': 'waterway', minzoom: 8,
-        paint: { 'line-color': '#0d3d6b', 'line-width': 1, 'line-opacity': 0.8 } },
-
-      // Straßen – erst ab Zoom 13
-      { id: 'roads-minor', type: 'line', source: 'openmaptiles',
-        'source-layer': 'transportation', minzoom: 13,
-        filter: ['in', ['get', 'class'],
-          ['literal', ['minor','service','path','track','footway','cycleway']]],
-        paint: { 'line-color': '#1f3350', 'line-width': 0.8, 'line-opacity': 0.7 } },
-
-      { id: 'roads-main', type: 'line', source: 'openmaptiles',
-        'source-layer': 'transportation', minzoom: 10,
-        filter: ['in', ['get', 'class'],
-          ['literal', ['primary','secondary','tertiary','residential','trunk']]],
-        paint: { 'line-color': '#1f3a5c', 'line-width': [
-          'interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5
-        ], 'line-opacity': 0.75 } },
-
-      { id: 'roads-major', type: 'line', source: 'openmaptiles',
-        'source-layer': 'transportation', minzoom: 6,
-        filter: ['in', ['get', 'class'], ['literal', ['motorway','trunk']]],
-        paint: { 'line-color': '#1f3a5c', 'line-width': [
-          'interpolate', ['linear'], ['zoom'], 6, 0.5, 12, 1.2, 16, 2.5
-        ], 'line-opacity': 0.65 } },
-
-      // Orts-Labels
+      // Ländernamen
       { id: 'place-country', type: 'symbol', source: 'openmaptiles',
-        'source-layer': 'place', maxzoom: 6,
+        'source-layer': 'place',
         filter: ['==', ['get', 'class'], 'country'],
+        maxzoom: 7,
         layout: {
-          'text-field': ['get', 'name:en'],
+          'text-field': ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name']],
           'text-font': ['Noto Sans Bold'],
-          'text-size': ['interpolate', ['linear'], ['zoom'], 1, 10, 4, 13],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 1, 10, 5, 14],
           'text-transform': 'uppercase',
-          'text-letter-spacing': 0.1
+          'text-letter-spacing': 0.12,
+          'text-max-width': 8
         },
-        paint: { 'text-color': 'rgba(155,185,225,0.80)',
-                 'text-halo-color': 'rgba(4,18,45,0.90)', 'text-halo-width': 1.2 } },
+        paint: {
+          'text-color': 'rgba(255,255,255,0.90)',
+          'text-halo-color': 'rgba(0,0,0,0.45)',
+          'text-halo-width': 1.5
+        }
+      },
 
+      // Städtenamen (Zoom 5+)
       { id: 'place-city', type: 'symbol', source: 'openmaptiles',
-        'source-layer': 'place', minzoom: 4,
-        filter: ['in', ['get', 'class'], ['literal', ['city','town']]],
+        'source-layer': 'place',
+        filter: ['in', ['get', 'class'], ['literal', ['city', 'town']]],
+        minzoom: 5,
         layout: {
-          'text-field': ['get', 'name:en'],
+          'text-field': ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
-          'text-size': ['interpolate', ['linear'], ['zoom'], 4, 9, 10, 13],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 5, 9, 10, 13],
+          'text-max-width': 8
         },
-        paint: { 'text-color': 'rgba(155,185,225,0.80)',
-                 'text-halo-color': 'rgba(4,18,45,0.90)', 'text-halo-width': 1.2 } },
+        paint: {
+          'text-color': 'rgba(255,255,255,0.88)',
+          'text-halo-color': 'rgba(0,0,0,0.50)',
+          'text-halo-width': 1.2
+        }
+      },
 
+      // Orte (Zoom 9+)
       { id: 'place-village', type: 'symbol', source: 'openmaptiles',
-        'source-layer': 'place', minzoom: 9,
-        filter: ['in', ['get', 'class'], ['literal', ['village','suburb','hamlet']]],
+        'source-layer': 'place',
+        filter: ['in', ['get', 'class'], ['literal', ['village', 'suburb', 'hamlet']]],
+        minzoom: 9,
         layout: {
-          'text-field': ['get', 'name:en'],
+          'text-field': ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name']],
           'text-font': ['Noto Sans Regular'],
           'text-size': 10,
+          'text-max-width': 6
         },
-        paint: { 'text-color': 'rgba(140,170,215,0.75)',
-                 'text-halo-color': 'rgba(4,18,45,0.90)', 'text-halo-width': 1.0 } },
+        paint: {
+          'text-color': 'rgba(255,255,255,0.82)',
+          'text-halo-color': 'rgba(0,0,0,0.55)',
+          'text-halo-width': 1.0
+        }
+      }
     ]
   };
 
   MAP = new maplibregl.Map({
     container: 'maplibre-map',
-    style: DARK_STYLE,
+    style: MAP_STYLE,
     center: [10, 20],
     zoom: 1.8,
     minZoom: 0.5,
