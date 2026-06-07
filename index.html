@@ -373,10 +373,11 @@ textarea.fi{resize:vertical;min-height:72px}
 .map-legend-country {
   width: 14px;
   height: 10px;
-  border: 1.5px solid #c9a84c;
-  background: rgba(26,74,138,0.55);
+  border: 2px solid #ffe07a;
+  background: rgba(201,168,76,0.55);
   border-radius: 2px;
   flex-shrink: 0;
+  box-shadow: 0 0 5px rgba(201,168,76,0.45);
 }
 
     .ship-retired { opacity: 0.72; }
@@ -948,42 +949,42 @@ function initCountryLayer() {
         }
       });
 
-      // Besuchte Länder – subtiler blauer Schimmer
+      // Besuchte Länder – satter goldener Schimmer (klar erkennbar, Terrain bleibt sichtbar)
       MAP.addLayer({
         id: 'countries-visited',
         type: 'fill',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'fill-color': '#1a4aaa',
-          'fill-opacity': 0.30
+          'fill-color': '#c9a84c',   // App-Gold – wärmt das Satellitenbild auf
+          'fill-opacity': 0.42        // Hoch genug um deutlich zu sein, Terrain bleibt sichtbar
         }
       });
 
-      // Besuchte Länder – dezente goldene Grenzlinie (nicht dominant)
+      // Besuchte Länder – helle goldene Außenlinie (klar und scharf)
       MAP.addLayer({
         id: 'countries-visited-line',
         type: 'line',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'line-color': '#c9a84c',
-          'line-width': 1.2,
-          'line-opacity': 0.65
+          'line-color': '#ffe07a',    // Helleres Gold für maximale Sichtbarkeit
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 1.5, 5, 2.2, 10, 3.0],
+          'line-opacity': 0.95
         }
       });
 
-      // Besuchte Länder – ganz weicher Glow (nur Hauch)
+      // Besuchte Länder – weicher Glow-Halo (maritimer Leuchteffekt)
       MAP.addLayer({
         id: 'countries-visited-glow',
         type: 'line',
         source: 'countries',
         filter: ['==', ['get', 'ISO3166-1-Alpha-2'], '__none__'],
         paint: {
-          'line-color': '#c9a84c',
-          'line-width': 3.5,
-          'line-opacity': 0.12,
-          'line-blur': 2.5
+          'line-color': '#f5d77a',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 0, 5, 5, 9, 10, 13],
+          'line-opacity': 0.28,
+          'line-blur': 5
         }
       });
 
